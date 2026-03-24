@@ -9,7 +9,7 @@ const Segmentation = {
   ready: false,
   resultCanvas: null,
   resultCtx: null,
-  featherRadius: 3,
+  featherRadius: 5,
 
   async init() {
     if (this.loading || this.ready) return;
@@ -52,19 +52,9 @@ const Segmentation = {
     if (!this.ready || !this.model || !this.enabled) return null;
     if (video.readyState < 2) return null;
 
-    // Cap at 480p for performance — same quality from MediaPipe
-    let pw = width;
-    let ph = height;
-    const maxW = 640, maxH = 480;
-    if (pw > maxW || ph > maxH) {
-      const s = Math.min(maxW / pw, maxH / ph);
-      pw = Math.round(pw * s);
-      ph = Math.round(ph * s);
-    }
-
-    if (this.resultCanvas.width !== pw || this.resultCanvas.height !== ph) {
-      this.resultCanvas.width = pw;
-      this.resultCanvas.height = ph;
+    if (this.resultCanvas.width !== width || this.resultCanvas.height !== height) {
+      this.resultCanvas.width = width;
+      this.resultCanvas.height = height;
     }
 
     try {
@@ -75,39 +65,29 @@ const Segmentation = {
       const mw = result.categoryMask.width;
       const mh = result.categoryMask.height;
 
-      // Draw camera to canvas at reduced resolution
-      this.resultCtx.drawImage(video, 0, 0, pw, ph);
-      const imageData = this.resultCtx.getImageData(0, 0, pw, ph);
+      // Draw camera to canvas
+      this.resultCtx.drawImage(video, 0, 0, width, height);
+      const imageData = this.resultCtx.getImageData(0, 0, width, height);
       const px = imageData.data;
 
-      // Apply mask — feathering only on edge pixels for speed
+      // Apply mask with feathering
       const r = this.featherRadius;
-      for (let y = 0; y < ph; y++) {
-        const my = Math.floor(y * mh / ph);
-        for (let x = 0; x < pw; x++) {
-          const mx = Math.floor(x * mw / pw);
-          const idx = (y * pw + x) * 4;
-          const isPerson = mask[my * mw + mx] === 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const mx = Math.floor(x * mw / width);
+          const my = Math.floor(y * mh / height);
+          const idx = (y * width + x) * 4;
 
-          // Check if this is an edge pixel (neighbor differs)
-          let isEdge = false;
-          if (r > 0) {
-            const left = mx > 0 ? mask[my * mw + mx - 1] : mask[my * mw + mx];
-            const right = mx < mw - 1 ? mask[my * mw + mx + 1] : mask[my * mw + mx];
-            const up = my > 0 ? mask[(my - 1) * mw + mx] : mask[my * mw + mx];
-            const down = my < mh - 1 ? mask[(my + 1) * mw + mx] : mask[my * mw + mx];
-            const center = mask[my * mw + mx];
-            isEdge = (left !== center || right !== center || up !== center || down !== center);
-          }
-
-          if (!isEdge) {
-            px[idx + 3] = isPerson ? 255 : 0;
+          if (r <= 0) {
+            // Hard edge
+            px[idx + 3] = mask[my * mw + mx] === 0 ? 255 : 0;
           } else {
-            // Soft edge — sample small neighborhood
+            // Soft edge — sample neighborhood
             let personCount = 0;
             let total = 0;
-            for (let dy = -r; dy <= r; dy++) {
-              for (let dx = -r; dx <= r; dx++) {
+            const step = Math.max(1, Math.floor(r / 2));
+            for (let dy = -r; dy <= r; dy += step) {
+              for (let dx = -r; dx <= r; dx += step) {
                 const sx = mx + dx;
                 const sy = my + dy;
                 if (sx >= 0 && sx < mw && sy >= 0 && sy < mh) {
