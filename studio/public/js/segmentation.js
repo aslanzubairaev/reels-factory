@@ -1,6 +1,5 @@
 /**
  * Segmentation module — AI background removal using MediaPipe
- * Removes real background, keeps only person silhouette
  * Uses Canvas compositing + GPU blur for performance (no per-pixel loops)
  */
 const Segmentation = {
@@ -10,11 +9,10 @@ const Segmentation = {
   ready: false,
   resultCanvas: null,
   resultCtx: null,
-  maskCanvas: null,
-  maskCtx: null,
-  blurRadius: 4, // px — soft edge quality
+  rawMaskCanvas: null,
+  rawMaskCtx: null,
+  blurRadius: 4,
 
-  // Cap processing resolution for performance
   maxProcessWidth: 640,
   maxProcessHeight: 480,
 
@@ -25,8 +23,8 @@ const Segmentation = {
     try {
       this.resultCanvas = document.createElement('canvas');
       this.resultCtx = this.resultCanvas.getContext('2d');
-      this.maskCanvas = document.createElement('canvas');
-      this.maskCtx = this.maskCanvas.getContext('2d');
+      this.rawMaskCanvas = document.createElement('canvas');
+      this.rawMaskCtx = this.rawMaskCanvas.getContext('2d');
 
       const { ImageSegmenter, FilesetResolver } = await import(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest'
@@ -54,10 +52,6 @@ const Segmentation = {
     }
   },
 
-  /**
-   * Process frame — returns canvas with person only (transparent bg)
-   * Uses Canvas compositing instead of per-pixel loop for speed
-   */
   processFrame(video, width, height) {
     if (!this.ready || !this.model || !this.enabled) return null;
     if (video.readyState < 2) return null;
@@ -74,8 +68,6 @@ const Segmentation = {
     if (this.resultCanvas.width !== pw || this.resultCanvas.height !== ph) {
       this.resultCanvas.width = pw;
       this.resultCanvas.height = ph;
-      this.maskCanvas.width = pw;
-      this.maskCanvas.height = ph;
     }
 
     try {
@@ -86,37 +78,35 @@ const Segmentation = {
       const mw = result.categoryMask.width;
       const mh = result.categoryMask.height;
 
-      // Step 1: Draw mask as white (person) on black (background)
-      const maskImageData = this.maskCtx.createImageData(mw, mh);
+      // Step 1: Write raw mask at its native resolution
+      if (this.rawMaskCanvas.width !== mw || this.rawMaskCanvas.height !== mh) {
+        this.rawMaskCanvas.width = mw;
+        this.rawMaskCanvas.height = mh;
+      }
+      const maskImageData = this.rawMaskCtx.createImageData(mw, mh);
       const md = maskImageData.data;
       for (let i = 0; i < mask.length; i++) {
-        const val = mask[i] === 0 ? 255 : 0; // person = white
+        const val = mask[i] === 0 ? 255 : 0;
         const idx = i * 4;
         md[idx] = val;
         md[idx + 1] = val;
         md[idx + 2] = val;
         md[idx + 3] = 255;
       }
-      this.maskCtx.putImageData(maskImageData, 0, 0);
+      this.rawMaskCtx.putImageData(maskImageData, 0, 0);
 
-      // Step 2: Apply GPU-accelerated blur for soft edges
-      if (this.blurRadius > 0) {
-        this.maskCtx.save();
-        this.maskCtx.filter = `blur(${this.blurRadius}px)`;
-        this.maskCtx.drawImage(this.maskCanvas, 0, 0, mw, mh, 0, 0, pw, ph);
-        this.maskCtx.restore();
-      } else {
-        // Just scale mask to process resolution
-        this.maskCtx.drawImage(this.maskCanvas, 0, 0, mw, mh, 0, 0, pw, ph);
-      }
-
-      // Step 3: Draw video frame
+      // Step 2: Draw video frame to result
       this.resultCtx.clearRect(0, 0, pw, ph);
+      this.resultCtx.globalCompositeOperation = 'source-over';
       this.resultCtx.drawImage(video, 0, 0, pw, ph);
 
-      // Step 4: Apply mask via compositing — keeps only person pixels
+      // Step 3: Apply mask with blur (soft edges) via compositing
       this.resultCtx.globalCompositeOperation = 'destination-in';
-      this.resultCtx.drawImage(this.maskCanvas, 0, 0);
+      if (this.blurRadius > 0) {
+        this.resultCtx.filter = `blur(${this.blurRadius}px)`;
+      }
+      this.resultCtx.drawImage(this.rawMaskCanvas, 0, 0, mw, mh, 0, 0, pw, ph);
+      this.resultCtx.filter = 'none';
       this.resultCtx.globalCompositeOperation = 'source-over';
 
       result.categoryMask.close();
