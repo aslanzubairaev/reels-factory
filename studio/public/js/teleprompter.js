@@ -1,13 +1,15 @@
 /**
  * Teleprompter module — displays script text
- * v2: shows background_prompt_display (user language)
+ * v2: badges, display prompt, hide prompt for face_only
  */
 const Teleprompter = {
   textElement: null,
   partInfoElement: null,
-  timingElement: null,
   layoutBadgeElement: null,
+  timingBadgeElement: null,
+  typeBadgeElement: null,
   promptElement: null,
+  promptSection: null,
 
   show(part, totalParts) {
     if (this.textElement) {
@@ -18,31 +20,36 @@ const Teleprompter = {
       this.partInfoElement.textContent = `Часть ${part.part_number} / ${totalParts}`;
     }
 
-    if (this.timingElement) {
-      this.timingElement.textContent = `${part.timing_seconds} сек`;
+    // Badges
+    if (this.layoutBadgeElement) {
+      this.layoutBadgeElement.textContent = part.layout.toUpperCase();
     }
 
-    if (this.layoutBadgeElement) {
-      const labels = {
-        'face_only': 'Face Only',
-        'full_background': 'Full Background',
-        'partial_background': 'Partial Background'
-      };
-      this.layoutBadgeElement.textContent = labels[part.layout] || part.layout;
-      this.layoutBadgeElement.className = `layout-badge layout-${part.layout}`;
+    if (this.timingBadgeElement) {
+      this.timingBadgeElement.textContent = `${part.timing_seconds} СЕК`;
+    }
+
+    if (this.typeBadgeElement) {
+      this.typeBadgeElement.textContent = (part.background_type || 'none').toUpperCase();
+    }
+
+    // Prompt — hide entire section for face_only
+    if (this.promptSection) {
+      if (part.background_type === 'none') {
+        this.promptSection.classList.add('hidden');
+      } else {
+        this.promptSection.classList.remove('hidden');
+      }
     }
 
     if (this.promptElement) {
       if (part.background_type === 'none') {
         this.promptElement.value = '';
         this.promptElement.disabled = true;
-        this.promptElement.placeholder = 'No background for face_only';
       } else {
-        // v2: Show display prompt (user language) if available
         const displayPrompt = Translate.getDisplayPrompt(part);
         this.promptElement.value = displayPrompt;
         this.promptElement.disabled = false;
-        this.promptElement.placeholder = 'Background generation prompt...';
       }
     }
   }

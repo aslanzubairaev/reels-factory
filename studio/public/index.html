@@ -10,162 +10,164 @@
 </head>
 <body>
 
-  <!-- Settings Screen -->
+  <!-- Экран настроек -->
   <div id="settings-screen">
     <div class="settings-card">
       <h1>Reels Factory Studio</h1>
-      <p class="subtitle">Configure your recording session</p>
+      <p class="subtitle">Настройте сессию записи</p>
 
       <div class="form-group">
-        <label>Project</label>
+        <label>Проект</label>
         <select id="project-select"></select>
       </div>
 
       <div class="form-group">
-        <label>Camera</label>
+        <label>Камера</label>
         <select id="camera-select"></select>
       </div>
 
       <div class="form-group">
-        <label>Microphone</label>
+        <label>Микрофон</label>
         <select id="mic-select"></select>
       </div>
 
       <div class="form-group">
-        <label>Recording Quality</label>
+        <label>Качество записи</label>
         <select id="quality-select">
           <option value="1080p">1080p (1080x1920)</option>
           <option value="720p">720p (720x1280)</option>
         </select>
       </div>
 
-      <div class="form-group">
-        <label>Camera Shape</label>
-        <select id="camera-shape-select">
-          <option value="rounded-rect">Rounded Rectangle</option>
-          <option value="circle">Circle</option>
-          <option value="oval">Oval</option>
-        </select>
-      </div>
-
-      <div class="form-group toggle-group">
-        <label>Dark Theme</label>
-        <label class="toggle">
-          <input type="checkbox" id="theme-toggle" checked>
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-
-      <button id="enter-studio-btn" class="btn btn-primary">Enter Studio</button>
+      <button id="enter-studio-btn" class="btn btn-primary">Войти в студию</button>
     </div>
   </div>
 
-  <!-- Loading Overlay -->
+  <!-- Загрузка -->
   <div id="loading-overlay" class="hidden">
     <div class="spinner"></div>
-    <div id="loading-text">Loading...</div>
+    <div id="loading-text">Загрузка...</div>
   </div>
 
-  <!-- Preview Screen -->
+  <!-- Режим Preview -->
   <div id="preview-screen" class="hidden">
     <div class="preview-left">
       <div class="phone-frame" id="phone-frame">
         <div id="bg-container"></div>
         <div id="camera-window" class="camera-window layout-face_only">
           <video id="camera-video" autoplay playsinline muted></video>
-          <div id="camera-resize-handle"></div>
         </div>
       </div>
-      <!-- Camera controls under phone frame -->
+      <!-- Управление камерой -->
       <div class="camera-controls">
-        <div class="zoom-control">
-          <label>Zoom</label>
-          <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
-          <span id="zoom-value">1.0x</span>
+        <div class="camera-controls-row">
+          <div class="zoom-control">
+            <label>Размер</label>
+            <input type="range" id="cam-size-slider" min="0.5" max="1.8" step="0.1" value="1">
+            <span id="cam-size-value">1.0x</span>
+          </div>
         </div>
-        <button id="mirror-btn" class="btn btn-secondary btn-sm">Mirror</button>
+        <div class="camera-controls-row">
+          <div class="zoom-control">
+            <label>Зум</label>
+            <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
+            <span id="zoom-value">1.0x</span>
+          </div>
+        </div>
+        <div class="camera-controls-row">
+          <button id="mirror-btn" class="btn btn-secondary btn-sm">Зеркало</button>
+          <select id="camera-shape-select" class="shape-select">
+            <option value="rounded-rect">Прямоугольник</option>
+            <option value="circle">Круг</option>
+          </select>
+          <button id="bg-mode-btn" class="bg-mode-btn">С фоном</button>
+          <button id="theme-toggle-btn" class="btn btn-secondary btn-sm theme-btn" title="Сменить тему">🌙 Тёмная</button>
+        </div>
       </div>
     </div>
 
     <div class="preview-right">
-      <!-- TOP: Background Prompt -->
+      <!-- СВЕРХУ: Промпт фона -->
       <div class="panel-section">
-        <h3>Background Prompt</h3>
-        <textarea id="bg-prompt" placeholder="Background generation prompt..."></textarea>
+        <h3>Промпт фона</h3>
+        <textarea id="bg-prompt" placeholder="Промпт для генерации фона..."></textarea>
         <div class="prompt-actions">
-          <button id="generate-btn" class="btn btn-secondary btn-sm">Generate</button>
-          <button id="cancel-generate-btn" class="btn btn-danger btn-sm hidden">Cancel</button>
+          <button id="generate-btn" class="btn btn-secondary btn-sm">Сгенерировать</button>
+          <button id="cancel-generate-btn" class="btn btn-danger btn-sm hidden">Отменить</button>
           <div id="generate-spinner" class="generate-spinner hidden">
             <div class="spinner-small"></div>
-            <span>Generating...</span>
+            <span>Генерация...</span>
           </div>
         </div>
       </div>
 
-      <!-- MIDDLE: Teleprompter Text (large font) -->
+      <!-- ПОСЕРЕДИНЕ: Текст телепромптера -->
       <div class="panel-section teleprompter-panel">
-        <h3>Script Text</h3>
+        <h3>Текст сценария</h3>
         <div id="teleprompter-text" class="teleprompter-text-large"></div>
       </div>
 
-      <!-- BOTTOM: Navigation and info -->
+      <!-- СНИЗУ: Информация и навигация -->
       <div class="panel-section">
-        <div class="part-header">
-          <span id="part-info">Part 1 / 5</span>
-          <span id="layout-badge" class="layout-badge">Face Only</span>
+        <div id="part-info" style="font-size:18px;font-weight:700;margin-bottom:6px">Часть 1 / 5</div>
+        <div class="badges-row">
+          <span id="layout-badge" class="badge badge-layout">FACE_ONLY</span>
+          <span id="timing-badge" class="badge badge-time">7 СЕК</span>
+          <span id="type-badge" class="badge badge-type">NONE</span>
         </div>
-        <div id="timing-info">7 sec</div>
       </div>
 
       <div class="panel-section">
         <div class="nav-bar">
-          <button id="prev-btn" class="btn btn-secondary">Prev</button>
-          <button id="next-btn" class="btn btn-secondary">Next</button>
+          <button id="prev-btn" class="btn btn-secondary">Назад</button>
+          <button id="next-btn" class="btn btn-secondary">Вперёд</button>
         </div>
-        <div class="nav-hint">Arrow keys: Left / Right</div>
+        <div class="nav-hint">Стрелки: Влево / Вправо</div>
       </div>
 
-      <button id="start-recording-btn" class="btn btn-record-start">Start Recording</button>
+      <button id="start-recording-btn" class="btn btn-record-start">Начать запись</button>
     </div>
   </div>
 
-  <!-- Recording Screen -->
+  <!-- Режим Recording -->
   <div id="recording-screen" class="hidden">
     <div class="rec-layout">
       <div class="rec-left">
         <div class="rec-canvas-wrapper">
           <canvas id="recording-canvas" width="1080" height="1920"></canvas>
+          <video id="rec-preview-video" class="rec-preview-video hidden" controls playsinline></video>
           <div id="rec-countdown" class="rec-countdown hidden"></div>
           <div id="rec-indicator" class="rec-indicator">REC</div>
         </div>
       </div>
 
       <div class="rec-right">
-        <div class="panel-section">
-          <div id="rec-part-info" class="rec-part-info">Part 1 / 5</div>
-          <div id="rec-timer" class="rec-timer">0s</div>
+        <div class="panel-section rec-status-bar">
+          <div class="rec-status-left">
+            <span id="rec-status-dot" class="rec-status-dot">●</span>
+            <span id="rec-status-text">ГОТОВ</span>
+            <span id="rec-part-info" class="rec-part-info">Часть 1 / 5</span>
+          </div>
+          <div id="rec-timer" class="rec-timer">00:00</div>
+        </div>
+
+        <div class="panel-section" style="padding:10px 20px">
+          <div class="badges-row">
+            <span id="rec-layout-badge" class="badge badge-layout">FACE_ONLY</span>
+            <span id="rec-timing-badge" class="badge badge-time">7 СЕК</span>
+          </div>
         </div>
 
         <div class="panel-section rec-teleprompter-panel">
-          <h3>Teleprompter</h3>
+          <h3>Телепромптер</h3>
           <div id="rec-teleprompter-scroll" class="rec-teleprompter-scroll">
             <div id="rec-teleprompter" class="rec-teleprompter-text"></div>
           </div>
           <div class="autoscroll-controls">
-            <label>Auto-scroll</label>
+            <label>Автоскролл</label>
             <input type="range" id="scroll-speed" min="0" max="5" step="0.5" value="0">
-            <span id="scroll-speed-value">Off</span>
-            <button id="scroll-pause-btn" class="btn btn-secondary btn-sm">Pause</button>
-          </div>
-        </div>
-
-        <div class="panel-section rec-controls-row">
-          <div class="rec-mirror-control">
-            <label>Mirror recording</label>
-            <label class="toggle toggle-sm">
-              <input type="checkbox" id="rec-mirror-toggle">
-              <span class="toggle-slider"></span>
-            </label>
+            <span id="scroll-speed-value">Выкл</span>
+            <button id="scroll-pause-btn" class="btn btn-secondary btn-sm">Пауза</button>
           </div>
         </div>
 
@@ -173,45 +175,64 @@
           <div id="rec-next-preview" class="rec-next-preview"></div>
         </div>
 
-        <div class="panel-section">
-          <h3>Recording Mode</h3>
-          <select id="rec-mode-select" class="rec-mode-select">
-            <option value="continuous">Continuous (one file)</option>
-            <option value="per_part">Per part (separate files)</option>
-          </select>
-        </div>
-
-        <div class="rec-controls">
-          <button id="rec-start-btn" class="btn btn-rec-start">Record</button>
-          <button id="rec-stop-btn" class="btn btn-rec-stop hidden">Stop</button>
-          <button id="rec-rerecord-btn" class="btn btn-secondary btn-sm">Re-record (R)</button>
-          <div class="rec-nav">
-            <button id="rec-prev-btn" class="btn btn-secondary btn-sm">Prev</button>
-            <button id="rec-next-btn" class="btn btn-secondary btn-sm">Next</button>
+        <!-- Прогресс-бар (скрыт до начала записи) -->
+        <div id="rec-progress-section" class="panel-section hidden" style="padding:10px 20px">
+          <div class="progress-bar-container">
+            <div id="rec-progress-bar" class="progress-bar"></div>
           </div>
-          <button id="rec-back-btn" class="btn btn-secondary btn-sm">Back to Preview (Esc)</button>
+          <div id="rec-progress-text" class="progress-text">0 / 0 сек</div>
         </div>
 
-        <div class="nav-hint">Space: Record/Stop | Arrows: Navigate | R: Re-record | Esc: Back</div>
+        <!-- Кнопки -->
+        <div class="rec-controls">
+          <!-- До записи: ← Запись → -->
+          <div id="rec-btns-ready" class="rec-btn-row">
+            <button id="rec-prev-btn" class="btn btn-secondary">←</button>
+            <button id="rec-start-btn" class="btn btn-rec-start">Запись</button>
+            <button id="rec-next-btn" class="btn btn-secondary">→</button>
+          </div>
+          <!-- Во время записи: ← Стоп → -->
+          <div id="rec-btns-recording" class="rec-btn-row hidden">
+            <button id="rec-prev-btn-2" class="btn btn-secondary">←</button>
+            <button id="rec-stop-btn" class="btn btn-rec-stop" style="flex:2">Стоп</button>
+            <button id="rec-next-btn-2" class="btn btn-secondary">→</button>
+          </div>
+          <!-- После записи: Просмотр + Перезаписать + Сохранить -->
+          <div id="rec-btns-done" class="hidden">
+            <div class="rec-btn-row">
+              <button id="rec-preview-btn" class="btn btn-primary" style="flex:1">Просмотр</button>
+              <button id="rec-rerecord-btn" class="btn btn-danger" style="flex:1">Перезаписать</button>
+            </div>
+            <div class="rec-btn-row" style="margin-top:8px">
+              <button id="rec-prev-btn-3" class="btn btn-secondary">←</button>
+              <button id="rec-save-direct-btn" class="btn btn-record-start" style="flex:2">Сохранить</button>
+              <button id="rec-next-btn-3" class="btn btn-secondary">→</button>
+            </div>
+          </div>
+          <!-- Всегда: Назад -->
+          <div class="rec-btn-row" style="margin-top:4px">
+            <button id="rec-back-btn" class="btn btn-secondary" style="flex:1">Назад</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Review Screen -->
+  <!-- Просмотр записи -->
   <div id="review-screen" class="hidden">
     <div class="review-layout">
       <div class="review-video-wrapper">
         <video id="review-video" controls></video>
       </div>
       <div class="review-controls">
-        <button id="review-play-btn" class="btn btn-primary">Play</button>
-        <button id="review-save-btn" class="btn btn-record-start">Save</button>
-        <button id="review-redo-btn" class="btn btn-secondary">Re-record</button>
+        <button id="review-play-btn" class="btn btn-primary">Воспроизвести</button>
+        <button id="review-save-btn" class="btn btn-record-start">Сохранить</button>
+        <button id="review-redo-btn" class="btn btn-secondary">Перезаписать</button>
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Скрипты -->
   <script src="/js/api.js"></script>
   <script src="/js/camera.js"></script>
   <script src="/js/background.js"></script>

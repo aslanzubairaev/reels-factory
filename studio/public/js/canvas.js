@@ -11,6 +11,7 @@ const Canvas = {
   currentLayout: 'face_only',
   cameraVideo: null,
   zoom: 1.0,          // 1.0x - 3.0x (W-012)
+  camSize: 1.0,       // camera window size multiplier
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
 
@@ -83,15 +84,28 @@ const Canvas = {
     if (layout === 'face_only') {
       dx = 0; dy = 0; dw = w; dh = h;
     } else if (layout === 'full_background') {
-      dw = Math.round(w * 0.25);
-      dh = Math.round(dw * 4 / 3);
-      dx = w - dw - Math.round(w * 0.04);
-      dy = h - dh - Math.round(h * 0.03);
-    } else if (layout === 'partial_background') {
-      dw = Math.round(w * 0.55);
-      dh = Math.round(dw * 4 / 3);
+      const s = this.camSize;
+      if (this.cameraShape === 'circle') {
+        const size = Math.round(w * 0.3 * s);
+        dw = size; dh = size;
+      } else {
+        dw = Math.round(w * 0.4 * s);
+        dh = Math.round(dw * 2 / 3);
+      }
       dx = Math.round((w - dw) / 2);
-      dy = h - dh - Math.round(h * 0.05);
+      dy = h - dh - Math.round(h * 0.04);
+    } else if (layout === 'partial_background') {
+      // Same as full_background — user controls size with slider
+      const s = this.camSize;
+      if (this.cameraShape === 'circle') {
+        const size = Math.round(w * 0.3 * s);
+        dw = size; dh = size;
+      } else {
+        dw = Math.round(w * 0.4 * s);
+        dh = Math.round(dw * 2 / 3);
+      }
+      dx = Math.round((w - dw) / 2);
+      dy = h - dh - Math.round(h * 0.04);
     } else {
       return;
     }
@@ -155,10 +169,6 @@ const Canvas = {
     if (this.cameraShape === 'circle') {
       const r = Math.min(w, h) / 2;
       ctx.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
-    } else if (this.cameraShape === 'oval') {
-      const rx = w / 2;
-      const ry = h / 2;
-      ctx.ellipse(x + rx, y + ry, rx, ry, 0, 0, Math.PI * 2);
     } else {
       // rounded-rect
       const r = Math.min(w, h) * 0.1;
@@ -178,10 +188,6 @@ const Canvas = {
     if (this.cameraShape === 'circle') {
       const r = Math.min(w, h) / 2;
       ctx.arc(x + w / 2, y + h / 2, r, 0, Math.PI * 2);
-    } else if (this.cameraShape === 'oval') {
-      const rx = w / 2;
-      const ry = h / 2;
-      ctx.ellipse(x + rx, y + ry, rx, ry, 0, 0, Math.PI * 2);
     } else {
       const r = Math.min(w, h) * 0.1;
       ctx.roundRect(x, y, w, h, r);
@@ -192,6 +198,10 @@ const Canvas = {
 
   setLayout(layout) {
     this.currentLayout = layout;
+  },
+
+  setCamSize(value) {
+    this.camSize = Math.max(0.5, Math.min(2.0, value));
   },
 
   setZoom(value) {

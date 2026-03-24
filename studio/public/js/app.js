@@ -14,8 +14,10 @@ const App = {
     isRecording: false,
     partTimer: 0,
     partTimerInterval: null,
+    recordingDone: false,
     cameraShape: 'rounded-rect',
     zoom: 1.0,
+    camSize: 1.0,
     mirrored: true,  // Preview = mirrored by default (W-018)
     darkTheme: true
   },
@@ -97,6 +99,14 @@ const App = {
     this.elements.cancelGenerateBtn?.addEventListener('click', () => this.cancelGeneration());
     this.elements.recordBtn?.addEventListener('click', () => this.switchToRecording());
 
+    // v2: Camera size slider
+    document.getElementById('cam-size-slider')?.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('cam-size-value').textContent = `${val.toFixed(1)}x`;
+      this.state.camSize = val;
+      this.applyCamSize();
+    });
+
     // v2: Zoom slider
     this.elements.zoomSlider?.addEventListener('input', (e) => {
       this.state.zoom = parseFloat(e.target.value);
@@ -109,22 +119,34 @@ const App = {
     // v2: Mirror button
     this.elements.mirrorBtn?.addEventListener('click', () => this.toggleMirror());
 
-    // v2: Theme toggle
-    this.elements.themeToggle?.addEventListener('change', (e) => {
-      this.setTheme(e.target.checked ? 'dark' : 'light');
+    // v2: Background mode toggle
+    document.getElementById('bg-mode-btn')?.addEventListener('click', () => this.toggleBgMode());
+
+    // v2: Camera shape (now inside studio)
+    this.elements.cameraShapeSelect?.addEventListener('change', (e) => {
+      this.state.cameraShape = e.target.value;
+      this.updateCameraShape();
+    });
+
+    // v2: Theme button (now inside studio)
+    document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+      this.state.darkTheme = !this.state.darkTheme;
+      this.setTheme(this.state.darkTheme ? 'dark' : 'light');
+      const btn = document.getElementById('theme-toggle-btn');
+      btn.textContent = this.state.darkTheme ? '🌙 Тёмная' : '☀️ Светлая';
     });
 
     // v2: Autoscroll speed slider (W-016)
     const scrollSpeed = document.getElementById('scroll-speed');
     scrollSpeed?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
-      document.getElementById('scroll-speed-value').textContent = val === 0 ? 'Off' : `${val}x`;
+      document.getElementById('scroll-speed-value').textContent = val === 0 ? 'Выкл' : `${val}x`;
     });
 
     // v2: Scroll pause button
     document.getElementById('scroll-pause-btn')?.addEventListener('click', () => {
       this.autoscrollPaused = !this.autoscrollPaused;
-      document.getElementById('scroll-pause-btn').textContent = this.autoscrollPaused ? 'Resume' : 'Pause';
+      document.getElementById('scroll-pause-btn').textContent = this.autoscrollPaused ? 'Продолжить' : 'Пауза';
     });
 
     // v2: Mirror toggle for recording (W-018)
@@ -139,6 +161,12 @@ const App = {
     this.elements.recPrevBtn?.addEventListener('click', () => this.prevSlide());
     this.elements.recNextBtn?.addEventListener('click', () => this.nextSlide());
     this.elements.recBackBtn?.addEventListener('click', () => this.switchToPreview());
+    document.getElementById('rec-save-direct-btn')?.addEventListener('click', () => this.saveRecording());
+    document.getElementById('rec-preview-btn')?.addEventListener('click', () => this.toggleRecPreview());
+    document.getElementById('rec-prev-btn-2')?.addEventListener('click', () => this.prevSlide());
+    document.getElementById('rec-next-btn-2')?.addEventListener('click', () => this.nextSlide());
+    document.getElementById('rec-prev-btn-3')?.addEventListener('click', () => this.prevSlide());
+    document.getElementById('rec-next-btn-3')?.addEventListener('click', () => this.nextSlide());
 
     // Review buttons
     this.elements.reviewPlayBtn?.addEventListener('click', () => this.playReview());
@@ -178,7 +206,7 @@ const App = {
     try {
       const data = await API.getProjects();
       const select = this.elements.projectSelect;
-      select.innerHTML = '<option value="">-- Select project --</option>';
+      select.innerHTML = '<option value="">-- Выберите проект --</option>';
       data.projects.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.name;
@@ -216,7 +244,7 @@ const App = {
 
   async enterStudio() {
     const projectName = this.elements.projectSelect.value;
-    if (!projectName) return alert('Select a project');
+    if (!projectName) return alert('Выберите проект');
 
     this.state.projectName = projectName;
     this.state.quality = this.elements.qualitySelect.value;
@@ -224,12 +252,12 @@ const App = {
 
     this.elements.settingsScreen.classList.add('hidden');
     this.elements.loadingOverlay.classList.remove('hidden');
-    this.elements.loadingText.textContent = 'Loading project...';
+    this.elements.loadingText.textContent = 'Загрузка проекта...';
 
     try {
       this.state.project = await API.getProject(projectName);
 
-      this.elements.loadingText.textContent = 'Starting camera...';
+      this.elements.loadingText.textContent = 'Запуск камеры...';
       Camera.videoElement = this.elements.cameraVideo;
       await Camera.start(
         this.elements.cameraSelect.value,
@@ -237,18 +265,20 @@ const App = {
         this.state.quality
       );
 
-      this.elements.loadingText.textContent = 'Loading backgrounds...';
+      this.elements.loadingText.textContent = 'Загрузка фонов...';
       Background.container = this.elements.bgContainer;
       Background.onProgress = (loaded, total) => {
-        this.elements.loadingText.textContent = `Loading backgrounds... ${loaded}/${total}`;
+        this.elements.loadingText.textContent = `Загрузка фонов... ${loaded}/${total}`;
       };
       await Background.preloadAll(this.state.project, projectName);
 
       Teleprompter.textElement = this.elements.teleprompterText;
       Teleprompter.partInfoElement = this.elements.partInfo;
-      Teleprompter.timingElement = this.elements.timingInfo;
-      Teleprompter.layoutBadgeElement = this.elements.layoutBadge;
+      Teleprompter.layoutBadgeElement = document.getElementById('layout-badge');
+      Teleprompter.timingBadgeElement = document.getElementById('timing-badge');
+      Teleprompter.typeBadgeElement = document.getElementById('type-badge');
       Teleprompter.promptElement = this.elements.bgPrompt;
+      Teleprompter.promptSection = this.elements.bgPrompt?.closest('.panel-section');
 
       // Apply camera shape
       this.updateCameraShape();
@@ -262,7 +292,7 @@ const App = {
 
     } catch (e) {
       console.error('Failed to enter studio:', e);
-      alert('Error: ' + e.message);
+      alert('Ошибка: ' + e.message);
       this.elements.loadingOverlay.classList.add('hidden');
       this.elements.settingsScreen.classList.remove('hidden');
     }
@@ -274,7 +304,18 @@ const App = {
     const part = this.state.project.parts[this.state.currentPart];
     if (!part) return;
 
-    Background.show(part.part_number);
+    // Show or hide background based on toggle
+    if (this.bgModeOn && part.background_type !== 'none') {
+      Background.show(part.part_number);
+    } else {
+      Background.show(null);
+    }
+
+    // Hide size slider on face_only (not needed)
+    const sizeSlider = document.getElementById('cam-size-slider')?.closest('.zoom-control');
+    if (sizeSlider) {
+      sizeSlider.style.display = part.layout === 'face_only' ? 'none' : 'flex';
+    }
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
@@ -352,6 +393,32 @@ const App = {
     // W-017: Canvas does NOT depend on theme
   },
 
+  // === Camera Size ===
+
+  applyCamSize() {
+    const cam = this.elements.cameraWindow;
+    if (!cam) return;
+    cam.style.setProperty('--cam-scale', this.state.camSize);
+  },
+
+  // === Background Mode Toggle ===
+
+  bgModeOn: true,
+
+  toggleBgMode() {
+    this.bgModeOn = !this.bgModeOn;
+    const btn = document.getElementById('bg-mode-btn');
+    if (this.bgModeOn) {
+      btn.textContent = 'С фоном';
+      btn.classList.remove('no-bg');
+    } else {
+      btn.textContent = 'Без фона';
+      btn.classList.add('no-bg');
+    }
+    // Re-show current slide to toggle background
+    this.showCurrentSlide();
+  },
+
   // === Background Generation ===
 
   async generateBackground() {
@@ -359,7 +426,7 @@ const App = {
     if (!part || part.background_type === 'none') return;
 
     const prompt = this.elements.bgPrompt.value.trim();
-    if (!prompt) return alert('Enter a prompt');
+    if (!prompt) return alert('Введите промпт');
 
     this.state.generating = true;
     this.elements.generateBtn.classList.add('hidden');
@@ -382,7 +449,7 @@ const App = {
         Background.show(part.part_number);
       }
     } catch (e) {
-      alert('Generation error: ' + e.message);
+      alert('Ошибка генерации: ' + e.message);
     } finally {
       this.state.generating = false;
       this.elements.generateBtn.classList.remove('hidden');
@@ -437,12 +504,13 @@ const App = {
     Canvas.setQuality(this.state.quality);
     Canvas.setLayout(this.state.project.parts[this.state.currentPart].layout);
     Canvas.setZoom(this.state.zoom);
+    Canvas.setCamSize(this.state.camSize);
     Canvas.setShape(this.state.cameraShape);
     // W-018: recording is non-mirrored by default
     Canvas.setMirror(false);
     Canvas.startRendering();
 
-    this.state.recordingMode = this.elements.recModeSelect?.value || 'continuous';
+    this.state.recordingDone = false;
     this.updateRecordingUI();
   },
 
@@ -462,17 +530,45 @@ const App = {
 
     if (this.elements.recTeleprompter) this.elements.recTeleprompter.textContent = part.text;
     if (this.elements.recPartInfo) {
-      this.elements.recPartInfo.textContent = `Part ${part.part_number} / ${this.state.project.parts.length}`;
+      this.elements.recPartInfo.textContent = `Часть ${part.part_number} / ${this.state.project.parts.length}`;
     }
-    if (this.elements.recTimer) this.elements.recTimer.textContent = `${part.timing_seconds}s`;
+
+    // Status
+    const statusDot = document.getElementById('rec-status-dot');
+    const statusText = document.getElementById('rec-status-text');
+    if (statusDot) statusDot.classList.toggle('recording', this.state.isRecording);
+    if (statusText) statusText.textContent = this.state.isRecording ? 'ЗАПИСЬ' : 'ГОТОВ';
+
+    // Badges
+    const layoutBadge = document.getElementById('rec-layout-badge');
+    const timingBadge = document.getElementById('rec-timing-badge');
+    if (layoutBadge) layoutBadge.textContent = part.layout.toUpperCase();
+    if (timingBadge) timingBadge.textContent = `${part.timing_seconds} СЕК`;
 
     this.updateNextPreview();
 
-    if (this.elements.recPrevBtn) this.elements.recPrevBtn.disabled = this.state.currentPart === 0;
-    if (this.elements.recNextBtn) this.elements.recNextBtn.disabled = this.state.currentPart === this.state.project.parts.length - 1;
-    if (this.elements.recIndicator) this.elements.recIndicator.classList.toggle('active', this.state.isRecording);
-    if (this.elements.recStartBtn) this.elements.recStartBtn.classList.toggle('hidden', this.state.isRecording);
-    if (this.elements.recStopBtn) this.elements.recStopBtn.classList.toggle('hidden', !this.state.isRecording);
+    // Button visibility by state
+    const btnsReady = document.getElementById('rec-btns-ready');
+    const btnsRecording = document.getElementById('rec-btns-recording');
+    const btnsDone = document.getElementById('rec-btns-done');
+    const progressSection = document.getElementById('rec-progress-section');
+
+    if (this.state.isRecording) {
+      btnsReady?.classList.add('hidden');
+      btnsRecording?.classList.remove('hidden');
+      btnsDone?.classList.add('hidden');
+      progressSection?.classList.remove('hidden');
+    } else if (this.state.recordingDone) {
+      btnsReady?.classList.add('hidden');
+      btnsRecording?.classList.add('hidden');
+      btnsDone?.classList.remove('hidden');
+      progressSection?.classList.remove('hidden');
+    } else {
+      btnsReady?.classList.remove('hidden');
+      btnsRecording?.classList.add('hidden');
+      btnsDone?.classList.add('hidden');
+      progressSection?.classList.add('hidden');
+    }
   },
 
   updateNextPreview() {
@@ -480,11 +576,11 @@ const App = {
     const el = this.elements.recNextPreview;
     if (!el) return;
     if (nextIdx >= this.state.project.parts.length) {
-      el.innerHTML = '<span class="next-label">Last part</span>';
+      el.innerHTML = '<span class="next-label">Последняя часть</span>';
       return;
     }
     const next = this.state.project.parts[nextIdx];
-    el.innerHTML = `<span class="next-label">Next:</span><span class="next-text">${next.text.substring(0, 50)}...</span>`;
+    el.innerHTML = `<span class="next-label">Далее:</span><span class="next-text">${next.text.substring(0, 50)}...</span>`;
   },
 
   async startRecording() {
@@ -492,17 +588,15 @@ const App = {
     await this.doCountdown();
 
     this.state.isRecording = true;
-    this.state.recordingMode = this.elements.recModeSelect?.value || 'continuous';
+    this.state.recordingDone = false;
+    this.state.recordingMode = 'continuous';
 
     const canvasStream = Canvas.getStream(30);
     const audioTrack = Camera.getAudioTrack();
 
-    Recorder.onStop = (blob) => {
-      if (this.state.recordingMode === 'per_part') {
-        const part = this.state.project.parts[this.state.currentPart];
-        Recorder.savePartRecording(part.part_number);
-      }
-      this.showReview(blob);
+    Recorder.onStop = () => {
+      // Stay in recording screen, show done buttons
+      this.updateRecordingUI();
     };
 
     Recorder.start(canvasStream, audioTrack);
@@ -514,6 +608,7 @@ const App = {
   stopRecording() {
     if (!this.state.isRecording) return;
     this.state.isRecording = false;
+    this.state.recordingDone = true;
     this.stopPartTimer();
     this.stopAutoscroll();
     Recorder.stop();
@@ -556,7 +651,19 @@ const App = {
   },
 
   rerecord() {
-    if (this.state.isRecording) this.stopRecording();
+    if (this.state.isRecording) {
+      this.state.isRecording = false;
+      this.stopPartTimer();
+      this.stopAutoscroll();
+      Recorder.stop();
+    }
+    this.state.recordingDone = false;
+    // Hide preview video if showing
+    const prevVideo = document.getElementById('rec-preview-video');
+    if (prevVideo) { prevVideo.pause(); prevVideo.classList.add('hidden'); prevVideo.src = ''; }
+    const prevBtn = document.getElementById('rec-preview-btn');
+    if (prevBtn) prevBtn.textContent = 'Просмотр';
+    this.updateRecordingUI();
     setTimeout(() => this.startRecording(), 300);
   },
 
@@ -595,7 +702,44 @@ const App = {
   },
 
   updateTimerDisplay() {
-    if (this.elements.recTimer) this.elements.recTimer.textContent = `${this.state.partTimer}s`;
+    const t = this.state.partTimer;
+    const min = String(Math.floor(t / 60)).padStart(2, '0');
+    const sec = String(t % 60).padStart(2, '0');
+    if (this.elements.recTimer) this.elements.recTimer.textContent = `${min}:${sec}`;
+
+    // Progress bar
+    const part = this.state.project?.parts[this.state.currentPart];
+    if (part) {
+      const total = part.timing_seconds;
+      const elapsed = total - t;
+      const pct = Math.min(100, (elapsed / total) * 100);
+      const bar = document.getElementById('rec-progress-bar');
+      const text = document.getElementById('rec-progress-text');
+      if (bar) bar.style.width = `${pct}%`;
+      if (text) text.textContent = `${elapsed} / ${total} сек`;
+    }
+  },
+
+  // === Preview Recording ===
+
+  toggleRecPreview() {
+    const video = document.getElementById('rec-preview-video');
+    const btn = document.getElementById('rec-preview-btn');
+    if (!video || !Recorder.recordedBlob) return;
+
+    if (video.classList.contains('hidden')) {
+      // Show preview
+      video.src = URL.createObjectURL(Recorder.recordedBlob);
+      video.classList.remove('hidden');
+      video.play();
+      btn.textContent = 'Скрыть';
+    } else {
+      // Hide preview
+      video.pause();
+      video.classList.add('hidden');
+      video.src = '';
+      btn.textContent = 'Просмотр';
+    }
   },
 
   // === Review ===
@@ -618,17 +762,17 @@ const App = {
     const filename = (mode === 'per_part' && part) ? `recording_part_${part.part_number}` : 'recording_full';
 
     this.elements.reviewSaveBtn.disabled = true;
-    this.elements.reviewSaveBtn.textContent = 'Saving...';
+    this.elements.reviewSaveBtn.textContent = 'Сохранение...';
 
     try {
       const result = await Recorder.saveRecording(this.state.projectName, filename);
-      alert(`Saved: ${result.file}`);
+      alert(`Сохранено: ${result.file}`);
       this.switchToRecording();
     } catch (e) {
-      alert('Save error: ' + e.message);
+      alert('Ошибка сохранения: ' + e.message);
     } finally {
       this.elements.reviewSaveBtn.disabled = false;
-      this.elements.reviewSaveBtn.textContent = 'Save';
+      this.elements.reviewSaveBtn.textContent = 'Сохранить';
     }
   }
 };
