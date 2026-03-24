@@ -9,7 +9,11 @@ const Segmentation = {
   ready: false,
   resultCanvas: null,
   resultCtx: null,
-  featherRadius: 5,
+  maskCanvas: null,    // separate canvas for mask (never shares with result)
+  maskCtx: null,
+  videoCanvas: null,   // separate canvas for video frame
+  videoCtx: null,
+  blurRadius: 4,
 
   async init() {
     if (this.loading || this.ready) return;
@@ -17,7 +21,11 @@ const Segmentation = {
 
     try {
       this.resultCanvas = document.createElement('canvas');
-      this.resultCtx = this.resultCanvas.getContext('2d', { willReadFrequently: true });
+      this.resultCtx = this.resultCanvas.getContext('2d');
+      this.maskCanvas = document.createElement('canvas');
+      this.maskCtx = this.maskCanvas.getContext('2d', { willReadFrequently: true });
+      this.videoCanvas = document.createElement('canvas');
+      this.videoCtx = this.videoCanvas.getContext('2d');
 
       const { ImageSegmenter, FilesetResolver } = await import(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest'
@@ -55,6 +63,8 @@ const Segmentation = {
     if (this.resultCanvas.width !== width || this.resultCanvas.height !== height) {
       this.resultCanvas.width = width;
       this.resultCanvas.height = height;
+      this.videoCanvas.width = width;
+      this.videoCanvas.height = height;
     }
 
     try {
@@ -65,43 +75,40 @@ const Segmentation = {
       const mw = result.categoryMask.width;
       const mh = result.categoryMask.height;
 
-      // Draw camera to canvas
-      this.resultCtx.drawImage(video, 0, 0, width, height);
-      const imageData = this.resultCtx.getImageData(0, 0, width, height);
-      const px = imageData.data;
-
-      // Apply mask with feathering
-      const r = this.featherRadius;
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const mx = Math.floor(x * mw / width);
-          const my = Math.floor(y * mh / height);
-          const idx = (y * width + x) * 4;
-
-          if (r <= 0) {
-            // Hard edge
-            px[idx + 3] = mask[my * mw + mx] === 0 ? 255 : 0;
-          } else {
-            // Soft edge — sample neighborhood
-            let personCount = 0;
-            let total = 0;
-            const step = Math.max(1, Math.floor(r / 2));
-            for (let dy = -r; dy <= r; dy += step) {
-              for (let dx = -r; dx <= r; dx += step) {
-                const sx = mx + dx;
-                const sy = my + dy;
-                if (sx >= 0 && sx < mw && sy >= 0 && sy < mh) {
-                  if (mask[sy * mw + sx] === 0) personCount++;
-                  total++;
-                }
-              }
-            }
-            px[idx + 3] = Math.round((personCount / total) * 255);
-          }
-        }
+      // Step 1: Build mask image at mask native resolution
+      // Key: person = alpha 255, background = alpha 0
+      if (this.maskCanvas.width !== mw || this.maskCanvas.height !== mh) {
+        this.maskCanvas.width = mw;
+        this.maskCanvas.height = mh;
       }
+      const maskImageData = this.maskCtx.createImageData(mw, mh);
+      const md = maskImageData.data;
+      for (let i = 0; i < mask.length; i++) {
+        const idx = i * 4;
+        md[idx] = 255;
+        md[idx + 1] = 255;
+        md[idx + 2] = 255;
+        md[idx + 3] = mask[i] === 0 ? 255 : 0; // person=opaque, bg=transparent
+      }
+      this.maskCtx.putImageData(maskImageData, 0, 0);
 
-      this.resultCtx.putImageData(imageData, 0, 0);
+      // Step 2: Draw video to separate videoCanvas
+      this.videoCtx.drawImage(video, 0, 0, width, height);
+
+      // Step 3: On resultCanvas — draw mask (scaled + blurred for soft edges)
+      this.resultCtx.clearRect(0, 0, width, height);
+      this.resultCtx.globalCompositeOperation = 'source-over';
+      if (this.blurRadius > 0) {
+        this.resultCtx.filter = `blur(${this.blurRadius}px)`;
+      }
+      this.resultCtx.drawImage(this.maskCanvas, 0, 0, mw, mh, 0, 0, width, height);
+      this.resultCtx.filter = 'none';
+
+      // Step 4: Draw video — source-in keeps video only where mask alpha > 0
+      this.resultCtx.globalCompositeOperation = 'source-in';
+      this.resultCtx.drawImage(this.videoCanvas, 0, 0);
+      this.resultCtx.globalCompositeOperation = 'source-over';
+
       result.categoryMask.close();
       return this.resultCanvas;
     } catch (e) {
