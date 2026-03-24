@@ -584,7 +584,9 @@ const App = {
       const dw = w; // always full width — no side borders
       const dh = Math.round(h * 0.5 * size);
       const dy = h - dh;
-      let dx = 0;
+      const shift = Math.round(w * 0.2);
+      const pos = this.state.camPosition;
+      let dx = pos === 'left' ? -shift : pos === 'right' ? shift : 0;
 
       // Cover crop to match destination region (dw x dh)
       const srcRatio = vw / vh;
@@ -602,7 +604,7 @@ const App = {
       if (this.state.mirrored) {
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
-        dx = w - dw - dx;
+        dx = -dx;
       }
       ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
       ctx.restore();

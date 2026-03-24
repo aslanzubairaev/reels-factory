@@ -122,7 +122,8 @@ const Canvas = {
     const dw = w; // always full width — no side borders
     const dh = Math.round(h * 0.5 * s);
     const dy = h - dh;
-    const dx = 0;
+    const shift = Math.round(w * 0.2);
+    let dx = this.camPosition === 'left' ? -shift : this.camPosition === 'right' ? shift : 0;
 
     // Cover crop to match destination region (dw x dh)
     const srcRatio = vw / vh;
