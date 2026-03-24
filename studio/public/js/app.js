@@ -410,27 +410,23 @@ const App = {
     Canvas.setShape(this.state.cameraShape);
   },
 
-  updatePreviewZoom() {
-    // W-012: For preview, use CSS object-position to simulate zoom
-    // Canvas handles actual zoom for recording
+  applyPreviewTransform() {
     const video = this.elements.cameraVideo;
     if (!video) return;
     const z = this.state.zoom;
-    video.style.transform = `scale(${z})`;
+    const mirror = this.state.mirrored ? 'scaleX(-1) ' : '';
+    video.style.transform = `${mirror}scale(${z})`;
     video.style.transformOrigin = 'center center';
+  },
+
+  updatePreviewZoom() {
+    this.applyPreviewTransform();
   },
 
   toggleMirror() {
     this.state.mirrored = !this.state.mirrored;
-    const video = this.elements.cameraVideo;
-    if (video) {
-      video.style.transform = this.state.mirrored
-        ? `scaleX(-1) scale(${this.state.zoom})`
-        : `scale(${this.state.zoom})`;
-    }
+    this.applyPreviewTransform();
     this.elements.mirrorBtn?.classList.toggle('active', this.state.mirrored);
-    // W-018: Canvas recording mirror is separate
-    // By default recording is non-mirrored, preview is mirrored
   },
 
   prevSlide() {
