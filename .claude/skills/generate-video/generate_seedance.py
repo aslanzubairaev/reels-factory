@@ -63,7 +63,8 @@ def generate_video(prompt, duration, output_path):
             status = task_data.get("status", "")
 
             if status == "completed":
-                video_url = task_data.get("output", {}).get("video_url") or \
+                video_url = task_data.get("output", {}).get("video") or \
+                           task_data.get("output", {}).get("video_url") or \
                            task_data.get("output", {}).get("url", "")
                 if not video_url:
                     print(f"ERROR: No video URL in completed task")
