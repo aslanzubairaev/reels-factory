@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reels Factory Studio</title>
+  <link rel="stylesheet" href="/css/studio.css">
+  <link rel="stylesheet" href="/css/dark-theme.css" id="theme-dark">
+  <link rel="stylesheet" href="/css/light-theme.css" id="theme-light" disabled>
+</head>
+<body>
+
+  <!-- Settings Screen -->
+  <div id="settings-screen">
+    <div class="settings-card">
+      <h1>Reels Factory Studio</h1>
+      <p class="subtitle">Configure your recording session</p>
+
+      <div class="form-group">
+        <label>Project</label>
+        <select id="project-select"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Camera</label>
+        <select id="camera-select"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Microphone</label>
+        <select id="mic-select"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Recording Quality</label>
+        <select id="quality-select">
+          <option value="1080p">1080p (1080x1920)</option>
+          <option value="720p">720p (720x1280)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Camera Shape</label>
+        <select id="camera-shape-select">
+          <option value="rounded-rect">Rounded Rectangle</option>
+          <option value="circle">Circle</option>
+          <option value="oval">Oval</option>
+        </select>
+      </div>
+
+      <div class="form-group toggle-group">
+        <label>Dark Theme</label>
+        <label class="toggle">
+          <input type="checkbox" id="theme-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <button id="enter-studio-btn" class="btn btn-primary">Enter Studio</button>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+    <div id="loading-text">Loading...</div>
+  </div>
+
+  <!-- Preview Screen -->
+  <div id="preview-screen" class="hidden">
+    <div class="preview-left">
+      <div class="phone-frame" id="phone-frame">
+        <div id="bg-container"></div>
+        <div id="camera-window" class="camera-window layout-face_only">
+          <video id="camera-video" autoplay playsinline muted></video>
+          <div id="camera-resize-handle"></div>
+        </div>
+      </div>
+      <!-- Camera controls under phone frame -->
+      <div class="camera-controls">
+        <div class="zoom-control">
+          <label>Zoom</label>
+          <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
+          <span id="zoom-value">1.0x</span>
+        </div>
+        <button id="mirror-btn" class="btn btn-secondary btn-sm">Mirror</button>
+      </div>
+    </div>
+
+    <div class="preview-right">
+      <!-- TOP: Background Prompt -->
+      <div class="panel-section">
+        <h3>Background Prompt</h3>
+        <textarea id="bg-prompt" placeholder="Background generation prompt..."></textarea>
+        <div class="prompt-actions">
+          <button id="generate-btn" class="btn btn-secondary btn-sm">Generate</button>
+          <button id="cancel-generate-btn" class="btn btn-danger btn-sm hidden">Cancel</button>
+          <div id="generate-spinner" class="generate-spinner hidden">
+            <div class="spinner-small"></div>
+            <span>Generating...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MIDDLE: Teleprompter Text (large font) -->
+      <div class="panel-section teleprompter-panel">
+        <h3>Script Text</h3>
+        <div id="teleprompter-text" class="teleprompter-text-large"></div>
+      </div>
+
+      <!-- BOTTOM: Navigation and info -->
+      <div class="panel-section">
+        <div class="part-header">
+          <span id="part-info">Part 1 / 5</span>
+          <span id="layout-badge" class="layout-badge">Face Only</span>
+        </div>
+        <div id="timing-info">7 sec</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="nav-bar">
+          <button id="prev-btn" class="btn btn-secondary">Prev</button>
+          <button id="next-btn" class="btn btn-secondary">Next</button>
+        </div>
+        <div class="nav-hint">Arrow keys: Left / Right</div>
+      </div>
+
+      <button id="start-recording-btn" class="btn btn-record-start">Start Recording</button>
+    </div>
+  </div>
+
+  <!-- Recording Screen -->
+  <div id="recording-screen" class="hidden">
+    <div class="rec-layout">
+      <div class="rec-left">
+        <div class="rec-canvas-wrapper">
+          <canvas id="recording-canvas" width="1080" height="1920"></canvas>
+          <div id="rec-countdown" class="rec-countdown hidden"></div>
+          <div id="rec-indicator" class="rec-indicator">REC</div>
+        </div>
+      </div>
+
+      <div class="rec-right">
+        <div class="panel-section">
+          <div id="rec-part-info" class="rec-part-info">Part 1 / 5</div>
+          <div id="rec-timer" class="rec-timer">0s</div>
+        </div>
+
+        <div class="panel-section rec-teleprompter-panel">
+          <h3>Teleprompter</h3>
+          <div id="rec-teleprompter-scroll" class="rec-teleprompter-scroll">
+            <div id="rec-teleprompter" class="rec-teleprompter-text"></div>
+          </div>
+          <div class="autoscroll-controls">
+            <label>Auto-scroll</label>
+            <input type="range" id="scroll-speed" min="0" max="5" step="0.5" value="0">
+            <span id="scroll-speed-value">Off</span>
+            <button id="scroll-pause-btn" class="btn btn-secondary btn-sm">Pause</button>
+          </div>
+        </div>
+
+        <div class="panel-section rec-controls-row">
+          <div class="rec-mirror-control">
+            <label>Mirror recording</label>
+            <label class="toggle toggle-sm">
+              <input type="checkbox" id="rec-mirror-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div id="rec-next-preview" class="rec-next-preview"></div>
+        </div>
+
+        <div class="panel-section">
+          <h3>Recording Mode</h3>
+          <select id="rec-mode-select" class="rec-mode-select">
+            <option value="continuous">Continuous (one file)</option>
+            <option value="per_part">Per part (separate files)</option>
+          </select>
+        </div>
+
+        <div class="rec-controls">
+          <button id="rec-start-btn" class="btn btn-rec-start">Record</button>
+          <button id="rec-stop-btn" class="btn btn-rec-stop hidden">Stop</button>
+          <button id="rec-rerecord-btn" class="btn btn-secondary btn-sm">Re-record (R)</button>
+          <div class="rec-nav">
+            <button id="rec-prev-btn" class="btn btn-secondary btn-sm">Prev</button>
+            <button id="rec-next-btn" class="btn btn-secondary btn-sm">Next</button>
+          </div>
+          <button id="rec-back-btn" class="btn btn-secondary btn-sm">Back to Preview (Esc)</button>
+        </div>
+
+        <div class="nav-hint">Space: Record/Stop | Arrows: Navigate | R: Re-record | Esc: Back</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Screen -->
+  <div id="review-screen" class="hidden">
+    <div class="review-layout">
+      <div class="review-video-wrapper">
+        <video id="review-video" controls></video>
+      </div>
+      <div class="review-controls">
+        <button id="review-play-btn" class="btn btn-primary">Play</button>
+        <button id="review-save-btn" class="btn btn-record-start">Save</button>
+        <button id="review-redo-btn" class="btn btn-secondary">Re-record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/camera.js"></script>
+  <script src="/js/background.js"></script>
+  <script src="/js/teleprompter.js"></script>
+  <script src="/js/hotkeys.js"></script>
+  <script src="/js/translate.js"></script>
+  <script src="/js/canvas.js"></script>
+  <script src="/js/recorder.js"></script>
+  <script src="/js/app.js"></script>
+
+</body>
+</html>

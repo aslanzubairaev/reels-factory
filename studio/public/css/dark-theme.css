@@ -1,0 +1,16 @@
+/* Dark Theme (default) */
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-input: #0a0a15;
+  --text-primary: #e0e0e0;
+  --text-secondary: #8888aa;
+  --accent: #6c63ff;
+  --accent-hover: #5a52d5;
+  --accent-glow: rgba(108, 99, 255, 0.3);
+  --danger: #ff4757;
+  --success: #2ed573;
+  --warning: #ffa502;
+  --border: #2a2a4a;
+}

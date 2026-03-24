@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["project_name", "language", "total_duration_seconds", "parts"],
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "language": {
+      "type": "string",
+      "description": "Script language (ru, en, fr, etc.)"
+    },
+    "total_duration_seconds": {
+      "type": "integer",
+      "description": "Total Reel duration in seconds (max 90)",
+      "maximum": 90
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["part_number", "text", "layout", "timing_seconds", "background_type", "background_prompt"],
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "description": "Part number (1, 2, 3...)"
+          },
+          "text": {
+            "type": "string",
+            "description": "Teleprompter text"
+          },
+          "layout": {
+            "type": "string",
+            "enum": ["full_background", "partial_background", "face_only"],
+            "description": "full_background = small camera window over full-screen background; partial_background = large camera with partial background; face_only = camera only, no background"
+          },
+          "timing_seconds": {
+            "type": "integer",
+            "description": "Duration of this part in seconds"
+          },
+          "background_type": {
+            "type": "string",
+            "enum": ["photo", "video", "none"],
+            "description": "photo = static image; video = short clip; none = no background (for face_only)"
+          },
+          "background_prompt": {
+            "type": "string",
+            "description": "Prompt for background generation (always in English). Empty string for face_only."
+          },
+          "background_prompt_display": {
+            "type": "string",
+            "description": "Prompt translated to user language for display in studio. Optional."
+          }
+        }
+      }
+    }
+  }
+}
