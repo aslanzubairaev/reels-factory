@@ -346,8 +346,8 @@ const App = {
     const part = this.state.project.parts[this.state.currentPart];
     if (!part) return;
 
-    // Show or hide background based on toggle
-    if (this.bgModeOn && part.background_type !== 'none') {
+    // Always show background if available
+    if (part.background_type !== 'none') {
       Background.show(part.part_number);
     } else {
       Background.show(null);
@@ -356,12 +356,12 @@ const App = {
     // Apply transition animation in Preview
     this.playTransition();
 
-    // Hide size/position on face_only (not needed)
-    const isFaceOnly = part.layout === 'face_only';
+    // Hide size/position only on face_only without bgRemoval
+    const hideControls = part.layout === 'face_only' && !this.bgRemoval;
     const sizeSlider = document.getElementById('cam-size-slider')?.closest('.camera-controls-row');
     const posRow = document.getElementById('cam-position-row');
-    if (sizeSlider) sizeSlider.style.display = isFaceOnly ? 'none' : 'flex';
-    if (posRow) posRow.style.display = isFaceOnly ? 'none' : 'flex';
+    if (sizeSlider) sizeSlider.style.display = hideControls ? 'none' : 'flex';
+    if (posRow) posRow.style.display = hideControls ? 'none' : 'flex';
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
@@ -382,6 +382,14 @@ const App = {
   updateCameraLayout(layout) {
     const cam = this.elements.cameraWindow;
     if (!cam) return;
+
+    // If bgRemoval is on, completely hide camera window
+    if (this.bgRemoval) {
+      cam.style.display = 'none';
+      return;
+    }
+
+    cam.style.display = '';
     cam.className = 'camera-window';
     cam.classList.add(`layout-${layout}`);
     cam.classList.add(`shape-${this.state.cameraShape}`);
@@ -508,20 +516,107 @@ const App = {
 
   // === Background Mode Toggle ===
 
-  bgModeOn: true,
+  bgRemoval: false,
 
-  toggleBgMode() {
-    this.bgModeOn = !this.bgModeOn;
+  previewSegInterval: null,
+
+  async toggleBgMode() {
+    this.bgRemoval = !this.bgRemoval;
     const btn = document.getElementById('bg-mode-btn');
-    if (this.bgModeOn) {
-      btn.textContent = 'С фоном';
-      btn.classList.remove('no-bg');
-    } else {
+    const segCanvas = document.getElementById('preview-segmentation-canvas');
+    const camWindow = this.elements.cameraWindow;
+
+    if (this.bgRemoval) {
+      btn.textContent = 'Загрузка AI...';
+      Segmentation.setEnabled(true);
+      if (!Segmentation.ready) {
+        await Segmentation.init();
+      }
       btn.textContent = 'Без фона';
       btn.classList.add('no-bg');
+      Canvas.setBgRemoval(true);
+
+      // Hide camera window, show segmentation canvas
+      if (camWindow) camWindow.classList.add('hidden');
+      if (segCanvas) {
+        segCanvas.classList.remove('hidden');
+        this.startPreviewSegmentation(segCanvas);
+      }
+    } else {
+      btn.textContent = 'С фоном';
+      btn.classList.remove('no-bg');
+      Segmentation.setEnabled(false);
+      Canvas.setBgRemoval(false);
+
+      // Show camera window, hide segmentation canvas
+      if (camWindow) camWindow.style.display = '';
+      if (segCanvas) segCanvas.classList.add('hidden');
+      this.stopPreviewSegmentation();
     }
-    // Re-show current slide to toggle background
     this.showCurrentSlide();
+  },
+
+  startPreviewSegmentation(canvas) {
+    this.stopPreviewSegmentation();
+    const video = this.elements.cameraVideo;
+    const ctx = canvas.getContext('2d');
+
+    // Match phone frame size
+    canvas.width = 340;
+    canvas.height = 604;
+
+    const render = () => {
+      if (!this.bgRemoval || this.state.screen !== 'preview') return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+
+      // Process at video native resolution for quality
+      const segResult = Segmentation.processFrame(video, vw, vh);
+      ctx.clearRect(0, 0, w, h);
+
+      const source = segResult || video;
+
+      // Draw at bottom, full width, height controlled by size slider
+      const size = this.state.camSize;
+      const dw = w; // always full width — no side borders
+      const dh = Math.round(h * 0.5 * size);
+      const dy = h - dh;
+      let dx = 0;
+
+      // Cover crop to match destination region (dw x dh)
+      const srcRatio = vw / vh;
+      const dstRatio = dw / dh;
+      let sx = 0, sy = 0, sw = vw, sh = vh;
+      if (srcRatio > dstRatio) {
+        sw = vh * dstRatio;
+        sx = (vw - sw) / 2;
+      } else {
+        sh = vw / dstRatio;
+        sy = (vh - sh) / 2;
+      }
+
+      ctx.save();
+      if (this.state.mirrored) {
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+        dx = w - dw - dx;
+      }
+      ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
+      ctx.restore();
+
+      this.previewSegInterval = requestAnimationFrame(render);
+    };
+    render();
+  },
+
+  stopPreviewSegmentation() {
+    if (this.previewSegInterval) {
+      cancelAnimationFrame(this.previewSegInterval);
+      this.previewSegInterval = null;
+    }
   },
 
   // === Background Generation ===
@@ -613,6 +708,7 @@ const App = {
     Canvas.setShape(this.state.cameraShape);
     Canvas.setCamPosition(this.state.camPosition);
     Canvas.setTransition(this.state.transition);
+    Canvas.setBgRemoval(this.bgRemoval);
     // W-018: recording is non-mirrored by default
     Canvas.setMirror(false);
     Canvas.startRendering();

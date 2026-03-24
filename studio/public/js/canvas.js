@@ -13,6 +13,7 @@ const Canvas = {
   zoom: 1.0,          // 1.0x - 3.0x (W-012)
   camSize: 1.0,       // camera window size multiplier
   camPosition: 'center', // 'left' | 'center' | 'right'
+  bgRemoval: false,      // AI background removal mode
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
   transition: 'fade',
@@ -88,9 +89,59 @@ const Canvas = {
 
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, w, h);
-    this.drawBackground(ctx, w, h);
-    this.drawCamera(ctx, w, h);
 
+    if (this.bgRemoval) {
+      // BG removal mode: full screen background + person silhouette on top
+      this.drawBackground(ctx, w, h);
+      this.drawPersonSilhouette(ctx, w, h);
+    } else {
+      // Normal mode: background + camera in small window
+      this.drawBackground(ctx, w, h);
+      this.drawCamera(ctx, w, h);
+    }
+
+    ctx.restore();
+  },
+
+  /**
+   * Draw person silhouette (AI background removed) on full screen
+   */
+  drawPersonSilhouette(ctx, w, h) {
+    if (!this.cameraVideo || this.cameraVideo.readyState < 2) return;
+
+    const vw = this.cameraVideo.videoWidth;
+    const vh = this.cameraVideo.videoHeight;
+    if (!vw || !vh) return;
+
+    // Process at native video resolution
+    const segResult = Segmentation.processFrame(this.cameraVideo, vw, vh);
+    const source = segResult || this.cameraVideo;
+
+    // Bottom half, full width, height controlled by camSize
+    const s = this.camSize;
+    const dw = w; // always full width — no side borders
+    const dh = Math.round(h * 0.5 * s);
+    const dy = h - dh;
+    const dx = 0;
+
+    // Cover crop to match destination region (dw x dh)
+    const srcRatio = vw / vh;
+    const dstRatio = dw / dh;
+    let sx = 0, sy = 0, sw = vw, sh = vh;
+    if (srcRatio > dstRatio) {
+      sw = vh * dstRatio;
+      sx = (vw - sw) / 2;
+    } else {
+      sh = vw / dstRatio;
+      sy = (vh - sh) / 2;
+    }
+
+    ctx.save();
+    if (this.mirrorRecording) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
     ctx.restore();
   },
 
@@ -245,6 +296,10 @@ const Canvas = {
     }
     ctx.stroke();
     ctx.restore();
+  },
+
+  setBgRemoval(enabled) {
+    this.bgRemoval = enabled;
   },
 
   setTransition(type) {
