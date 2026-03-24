@@ -362,6 +362,12 @@ const App = {
     const posRow = document.getElementById('cam-position-row');
     if (sizeSlider) sizeSlider.style.display = hideControls ? 'none' : 'flex';
     if (posRow) posRow.style.display = hideControls ? 'none' : 'flex';
+
+    // Hide zoom and shape select in bgRemoval mode (not relevant)
+    const zoomRow = document.getElementById('zoom-slider')?.closest('.camera-controls-row');
+    const shapeSelect = document.getElementById('camera-shape-select');
+    if (zoomRow) zoomRow.style.display = this.bgRemoval ? 'none' : 'flex';
+    if (shapeSelect) shapeSelect.style.display = this.bgRemoval ? 'none' : '';
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
