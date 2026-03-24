@@ -15,6 +15,10 @@ const Canvas = {
   camPosition: 'center', // 'left' | 'center' | 'right'
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
+  transition: 'fade',
+  transitionProgress: 1,       // 0 = start, 1 = done
+  transitionDuration: 400,     // ms
+  transitionStartTime: 0,
 
   init(canvasElement, cameraVideoElement) {
     this.canvas = canvasElement;
@@ -58,10 +62,42 @@ const Canvas = {
     const w = this.width;
     const h = this.height;
 
+    // Update transition progress
+    if (this.transitionProgress < 1) {
+      const elapsed = performance.now() - this.transitionStartTime;
+      this.transitionProgress = Math.min(1, elapsed / this.transitionDuration);
+    }
+
+    ctx.save();
+
+    // Apply transition effect
+    if (this.transitionProgress < 1 && this.transition !== 'cut') {
+      const p = this.transitionProgress;
+      if (this.transition === 'fade') {
+        ctx.globalAlpha = p;
+      } else if (this.transition === 'slide') {
+        ctx.translate(w * (1 - p), 0);
+      } else if (this.transition === 'zoom') {
+        const scale = 1 + 0.3 * (1 - p);
+        ctx.globalAlpha = p;
+        ctx.translate(w / 2, h / 2);
+        ctx.scale(scale, scale);
+        ctx.translate(-w / 2, -h / 2);
+      }
+    }
+
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, w, h);
     this.drawBackground(ctx, w, h);
     this.drawCamera(ctx, w, h);
+
+    ctx.restore();
+  },
+
+  triggerTransition() {
+    if (this.transition === 'cut') return;
+    this.transitionProgress = 0;
+    this.transitionStartTime = performance.now();
   },
 
   drawBackground(ctx, w, h) {
@@ -209,6 +245,10 @@ const Canvas = {
     }
     ctx.stroke();
     ctx.restore();
+  },
+
+  setTransition(type) {
+    this.transition = type;
   },
 
   setLayout(layout) {

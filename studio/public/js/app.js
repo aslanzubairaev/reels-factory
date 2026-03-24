@@ -20,6 +20,7 @@ const App = {
     zoom: 1.0,
     camSize: 1.0,
     camPosition: 'center', // 'left' | 'center' | 'right'
+    transition: 'fade',    // 'fade' | 'slide' | 'zoom' | 'cut'
     mirrored: true,  // Preview = mirrored by default (W-018)
     darkTheme: true
   },
@@ -133,6 +134,11 @@ const App = {
 
     // v2: Background mode toggle
     document.getElementById('bg-mode-btn')?.addEventListener('click', () => this.toggleBgMode());
+
+    // v2: Transition selector
+    document.getElementById('transition-select')?.addEventListener('change', (e) => {
+      this.state.transition = e.target.value;
+    });
 
     // v2: Camera shape (now inside studio)
     this.elements.cameraShapeSelect?.addEventListener('change', (e) => {
@@ -347,6 +353,9 @@ const App = {
       Background.show(null);
     }
 
+    // Apply transition animation in Preview
+    this.playTransition();
+
     // Hide size/position on face_only (not needed)
     const isFaceOnly = part.layout === 'face_only';
     const sizeSlider = document.getElementById('cam-size-slider')?.closest('.camera-controls-row');
@@ -356,6 +365,9 @@ const App = {
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
+    if (this.state.screen === 'recording') {
+      Canvas.triggerTransition();
+    }
 
     if (this.elements.prevBtn) {
       this.elements.prevBtn.disabled = this.state.currentPart === 0;
@@ -429,6 +441,32 @@ const App = {
     document.getElementById('theme-dark').disabled = theme !== 'dark';
     document.getElementById('theme-light').disabled = theme !== 'light';
     // W-017: Canvas does NOT depend on theme
+  },
+
+  // === Transitions ===
+
+  playTransition() {
+    const container = document.getElementById('bg-container');
+    if (!container || this.state.transition === 'cut') return;
+
+    // Remove old animation
+    container.classList.remove('transition-fade', 'transition-slide', 'transition-zoom');
+
+    // Force reflow to restart animation
+    void container.offsetWidth;
+
+    // Add new animation
+    container.classList.add(`transition-${this.state.transition}`);
+
+    // Also animate the camera window
+    const cam = this.elements.cameraWindow;
+    if (cam) {
+      cam.style.animation = 'none';
+      void cam.offsetWidth;
+      if (this.state.transition === 'fade') {
+        cam.style.animation = 'fadeIn 0.4s ease-in-out';
+      }
+    }
   },
 
   // === Auto-Advance ===
@@ -574,6 +612,7 @@ const App = {
     Canvas.setCamSize(this.state.camSize);
     Canvas.setShape(this.state.cameraShape);
     Canvas.setCamPosition(this.state.camPosition);
+    Canvas.setTransition(this.state.transition);
     // W-018: recording is non-mirrored by default
     Canvas.setMirror(false);
     Canvas.startRendering();
