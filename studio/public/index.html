@@ -54,7 +54,7 @@
     <div class="preview-left">
       <div class="phone-frame" id="phone-frame">
         <div id="bg-container"></div>
-        <div id="camera-window" class="camera-window layout-face_only">
+        <div id="camera-window" class="camera-window layout-face_only cam-pos-center">
           <video id="camera-video" autoplay playsinline muted></video>
         </div>
       </div>
@@ -73,6 +73,12 @@
             <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
             <span id="zoom-value">1.0x</span>
           </div>
+        </div>
+        <div class="camera-controls-row" id="cam-position-row">
+          <label style="font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Позиция</label>
+          <button class="btn btn-secondary btn-sm cam-pos-btn" data-pos="left">Слева</button>
+          <button class="btn btn-secondary btn-sm cam-pos-btn active" data-pos="center">Центр</button>
+          <button class="btn btn-secondary btn-sm cam-pos-btn" data-pos="right">Справа</button>
         </div>
         <div class="camera-controls-row">
           <button id="mirror-btn" class="btn btn-secondary btn-sm">Зеркало</button>
@@ -173,6 +179,10 @@
 
         <div class="panel-section">
           <div id="rec-next-preview" class="rec-next-preview"></div>
+          <div class="auto-advance-row" style="margin-top:8px">
+            <span>Автопереход</span>
+            <button id="auto-advance-btn" class="btn btn-secondary btn-sm auto-advance-active">Авто: ВКЛ</button>
+          </div>
         </div>
 
         <!-- Прогресс-бар (скрыт до начала записи) -->
@@ -185,29 +195,25 @@
 
         <!-- Кнопки -->
         <div class="rec-controls">
-          <!-- До записи: ← Запись → -->
+          <!-- До записи: Запись -->
           <div id="rec-btns-ready" class="rec-btn-row">
-            <button id="rec-prev-btn" class="btn btn-secondary">←</button>
-            <button id="rec-start-btn" class="btn btn-rec-start">Запись</button>
-            <button id="rec-next-btn" class="btn btn-secondary">→</button>
+            <button id="rec-start-btn" class="btn btn-rec-start" style="flex:1">Запись</button>
           </div>
-          <!-- Во время записи: ← Стоп → -->
+          <!-- Навигация (всегда видна) -->
+          <div class="rec-btn-row">
+            <button id="rec-prev-btn-nav" class="btn btn-secondary">←</button>
+            <span id="rec-slide-label" style="flex:2;text-align:center;color:var(--text-secondary);font-size:13px">Часть 1 / 7</span>
+            <button id="rec-next-btn-nav" class="btn btn-secondary">→</button>
+          </div>
+          <!-- Во время записи: Стоп -->
           <div id="rec-btns-recording" class="rec-btn-row hidden">
-            <button id="rec-prev-btn-2" class="btn btn-secondary">←</button>
-            <button id="rec-stop-btn" class="btn btn-rec-stop" style="flex:2">Стоп</button>
-            <button id="rec-next-btn-2" class="btn btn-secondary">→</button>
+            <button id="rec-stop-btn" class="btn btn-rec-stop" style="flex:1">Стоп</button>
           </div>
           <!-- После записи: Просмотр + Перезаписать + Сохранить -->
-          <div id="rec-btns-done" class="hidden">
-            <div class="rec-btn-row">
-              <button id="rec-preview-btn" class="btn btn-primary" style="flex:1">Просмотр</button>
-              <button id="rec-rerecord-btn" class="btn btn-danger" style="flex:1">Перезаписать</button>
-            </div>
-            <div class="rec-btn-row" style="margin-top:8px">
-              <button id="rec-prev-btn-3" class="btn btn-secondary">←</button>
-              <button id="rec-save-direct-btn" class="btn btn-record-start" style="flex:2">Сохранить</button>
-              <button id="rec-next-btn-3" class="btn btn-secondary">→</button>
-            </div>
+          <div id="rec-btns-done" class="rec-btn-row hidden">
+            <button id="rec-preview-btn" class="btn btn-primary rec-done-btn">Просмотр</button>
+            <button id="rec-rerecord-btn" class="btn btn-danger rec-done-btn">Перезаписать</button>
+            <button id="rec-save-direct-btn" class="btn btn-record-start rec-done-btn">Сохранить</button>
           </div>
           <!-- Всегда: Назад -->
           <div class="rec-btn-row" style="margin-top:4px">

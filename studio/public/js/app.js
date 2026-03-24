@@ -15,9 +15,11 @@ const App = {
     partTimer: 0,
     partTimerInterval: null,
     recordingDone: false,
+    autoAdvance: true,
     cameraShape: 'rounded-rect',
     zoom: 1.0,
     camSize: 1.0,
+    camPosition: 'center', // 'left' | 'center' | 'right'
     mirrored: true,  // Preview = mirrored by default (W-018)
     darkTheme: true
   },
@@ -116,6 +118,16 @@ const App = {
       this.updatePreviewZoom();
     });
 
+    // v2: Camera position buttons
+    document.querySelectorAll('.cam-pos-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.state.camPosition = btn.dataset.pos;
+        document.querySelectorAll('.cam-pos-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.applyCamPosition();
+      });
+    });
+
     // v2: Mirror button
     this.elements.mirrorBtn?.addEventListener('click', () => this.toggleMirror());
 
@@ -163,10 +175,32 @@ const App = {
     this.elements.recBackBtn?.addEventListener('click', () => this.switchToPreview());
     document.getElementById('rec-save-direct-btn')?.addEventListener('click', () => this.saveRecording());
     document.getElementById('rec-preview-btn')?.addEventListener('click', () => this.toggleRecPreview());
-    document.getElementById('rec-prev-btn-2')?.addEventListener('click', () => this.prevSlide());
-    document.getElementById('rec-next-btn-2')?.addEventListener('click', () => this.nextSlide());
-    document.getElementById('rec-prev-btn-3')?.addEventListener('click', () => this.prevSlide());
-    document.getElementById('rec-next-btn-3')?.addEventListener('click', () => this.nextSlide());
+
+    // Navigation arrows in recording — manual advance resets timer
+    document.getElementById('rec-prev-btn-nav')?.addEventListener('click', () => {
+      this.prevSlide();
+      if (this.state.isRecording) {
+        this.stopPartTimer();
+        this.stopAutoscroll();
+        this.startPartTimer();
+        this.startAutoscroll();
+      }
+    });
+    document.getElementById('rec-next-btn-nav')?.addEventListener('click', () => {
+      this.nextSlide();
+      if (this.state.isRecording) {
+        this.stopPartTimer();
+        this.stopAutoscroll();
+        this.startPartTimer();
+        this.startAutoscroll();
+      }
+    });
+
+    // Auto-advance toggle
+    document.getElementById('auto-advance-btn')?.addEventListener('click', () => {
+      this.state.autoAdvance = !this.state.autoAdvance;
+      this.updateAutoAdvanceBtn();
+    });
 
     // Review buttons
     this.elements.reviewPlayBtn?.addEventListener('click', () => this.playReview());
@@ -280,8 +314,10 @@ const App = {
       Teleprompter.promptElement = this.elements.bgPrompt;
       Teleprompter.promptSection = this.elements.bgPrompt?.closest('.panel-section');
 
-      // Apply camera shape
+      // Apply camera shape and position (default center)
       this.updateCameraShape();
+      this.state.camPosition = 'center';
+      this.applyCamPosition();
 
       this.state.currentPart = 0;
       this.showCurrentSlide();
@@ -311,11 +347,12 @@ const App = {
       Background.show(null);
     }
 
-    // Hide size slider on face_only (not needed)
-    const sizeSlider = document.getElementById('cam-size-slider')?.closest('.zoom-control');
-    if (sizeSlider) {
-      sizeSlider.style.display = part.layout === 'face_only' ? 'none' : 'flex';
-    }
+    // Hide size/position on face_only (not needed)
+    const isFaceOnly = part.layout === 'face_only';
+    const sizeSlider = document.getElementById('cam-size-slider')?.closest('.camera-controls-row');
+    const posRow = document.getElementById('cam-position-row');
+    if (sizeSlider) sizeSlider.style.display = isFaceOnly ? 'none' : 'flex';
+    if (posRow) posRow.style.display = isFaceOnly ? 'none' : 'flex';
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
@@ -336,6 +373,7 @@ const App = {
     cam.className = 'camera-window';
     cam.classList.add(`layout-${layout}`);
     cam.classList.add(`shape-${this.state.cameraShape}`);
+    cam.classList.add(`cam-pos-${this.state.camPosition}`);
   },
 
   updateCameraShape() {
@@ -391,6 +429,35 @@ const App = {
     document.getElementById('theme-dark').disabled = theme !== 'dark';
     document.getElementById('theme-light').disabled = theme !== 'light';
     // W-017: Canvas does NOT depend on theme
+  },
+
+  // === Auto-Advance ===
+
+  disableAutoAdvance() {
+    this.state.autoAdvance = false;
+    this.updateAutoAdvanceBtn();
+  },
+
+  updateAutoAdvanceBtn() {
+    const btn = document.getElementById('auto-advance-btn');
+    if (!btn) return;
+    if (this.state.autoAdvance) {
+      btn.textContent = 'Авто: ВКЛ';
+      btn.classList.add('auto-advance-active');
+    } else {
+      btn.textContent = 'Авто: ВЫКЛ';
+      btn.classList.remove('auto-advance-active');
+    }
+  },
+
+  // === Camera Position ===
+
+  applyCamPosition() {
+    const cam = this.elements.cameraWindow;
+    if (!cam) return;
+    cam.classList.remove('cam-pos-left', 'cam-pos-center', 'cam-pos-right');
+    cam.classList.add(`cam-pos-${this.state.camPosition}`);
+    Canvas.setCamPosition(this.state.camPosition);
   },
 
   // === Camera Size ===
@@ -506,6 +573,7 @@ const App = {
     Canvas.setZoom(this.state.zoom);
     Canvas.setCamSize(this.state.camSize);
     Canvas.setShape(this.state.cameraShape);
+    Canvas.setCamPosition(this.state.camPosition);
     // W-018: recording is non-mirrored by default
     Canvas.setMirror(false);
     Canvas.startRendering();
@@ -544,6 +612,10 @@ const App = {
     const timingBadge = document.getElementById('rec-timing-badge');
     if (layoutBadge) layoutBadge.textContent = part.layout.toUpperCase();
     if (timingBadge) timingBadge.textContent = `${part.timing_seconds} СЕК`;
+
+    // Slide label in nav
+    const slideLabel = document.getElementById('rec-slide-label');
+    if (slideLabel) slideLabel.textContent = `Часть ${part.part_number} / ${this.state.project.parts.length}`;
 
     this.updateNextPreview();
 
@@ -680,8 +752,13 @@ const App = {
   },
 
   startPartTimer() {
+    // Clear any existing timer first
+    this.stopPartTimer();
+
     const part = this.state.project.parts[this.state.currentPart];
     if (!part) return;
+
+    // Reset to full duration of THIS slide
     this.state.partTimer = part.timing_seconds;
     this.updateTimerDisplay();
     this.state.partTimerInterval = setInterval(() => {
@@ -689,7 +766,17 @@ const App = {
       this.updateTimerDisplay();
       if (this.state.partTimer <= 0) {
         this.stopPartTimer();
-        if (this.state.recordingMode === 'per_part') this.stopRecording();
+        if (this.state.autoAdvance && this.state.currentPart < this.state.project.parts.length - 1) {
+          // Auto-advance to next slide
+          this.state.currentPart++;
+          this.showCurrentSlide();
+          this.startPartTimer();
+          this.startAutoscroll();
+        } else if (this.state.currentPart >= this.state.project.parts.length - 1) {
+          // Last slide — auto stop
+          this.stopRecording();
+        }
+        // If auto off and not last — just stop timer, keep recording
       }
     }, 1000);
   },

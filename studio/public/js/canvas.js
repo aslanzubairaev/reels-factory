@@ -12,6 +12,7 @@ const Canvas = {
   cameraVideo: null,
   zoom: 1.0,          // 1.0x - 3.0x (W-012)
   camSize: 1.0,       // camera window size multiplier
+  camPosition: 'center', // 'left' | 'center' | 'right'
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
 
@@ -92,10 +93,17 @@ const Canvas = {
         dw = Math.round(w * 0.4 * s);
         dh = Math.round(dw * 2 / 3);
       }
-      dx = Math.round((w - dw) / 2);
+      // Position: left / center / right
+      const margin = Math.round(w * 0.03);
+      if (this.camPosition === 'left') {
+        dx = margin;
+      } else if (this.camPosition === 'right') {
+        dx = w - dw - margin;
+      } else {
+        dx = Math.round((w - dw) / 2);
+      }
       dy = h - dh - Math.round(h * 0.04);
     } else if (layout === 'partial_background') {
-      // Same as full_background — user controls size with slider
       const s = this.camSize;
       if (this.cameraShape === 'circle') {
         const size = Math.round(w * 0.3 * s);
@@ -104,7 +112,14 @@ const Canvas = {
         dw = Math.round(w * 0.4 * s);
         dh = Math.round(dw * 2 / 3);
       }
-      dx = Math.round((w - dw) / 2);
+      const margin = Math.round(w * 0.03);
+      if (this.camPosition === 'left') {
+        dx = margin;
+      } else if (this.camPosition === 'right') {
+        dx = w - dw - margin;
+      } else {
+        dx = Math.round((w - dw) / 2);
+      }
       dy = h - dh - Math.round(h * 0.04);
     } else {
       return;
@@ -198,6 +213,10 @@ const Canvas = {
 
   setLayout(layout) {
     this.currentLayout = layout;
+  },
+
+  setCamPosition(pos) {
+    this.camPosition = pos;
   },
 
   setCamSize(value) {

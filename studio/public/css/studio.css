@@ -299,22 +299,48 @@ body {
   max-height: 100%;
 }
 
-/* Horizontal rectangle — centered bottom */
+/* Position buttons */
+.cam-pos-btn {
+  min-width: 60px;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+}
+
+.cam-pos-btn.active {
+  background: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+}
+
+/* Horizontal rectangle — bottom, position via --cam-pos */
 .camera-window.layout-full_background {
   bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   top: auto !important;
   width: calc(180px * var(--cam-scale)) !important;
   height: calc(120px * var(--cam-scale)) !important;
   border-radius: 16px;
 }
 
-/* partial_background treated same as full_background */
+/* Camera positions */
+.camera-window.cam-pos-left {
+  left: 10px !important;
+  transform: none !important;
+}
+
+.camera-window.cam-pos-center {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.camera-window.cam-pos-right {
+  left: auto !important;
+  right: 10px !important;
+  transform: none !important;
+}
+
+/* partial_background same as full_background */
 .camera-window.layout-partial_background {
   bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   top: auto !important;
   width: calc(180px * var(--cam-scale)) !important;
   height: calc(120px * var(--cam-scale)) !important;
@@ -795,6 +821,43 @@ body {
 
 .rec-btn-row .btn {
   flex: 1;
+}
+
+#rec-btns-done {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+#rec-btns-done.hidden {
+  display: none !important;
+}
+
+.rec-done-btn {
+  padding: 0 8px !important;
+  font-size: 15px !important;
+  text-align: center;
+  width: 100% !important;
+  height: 54px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+
+.auto-advance-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.auto-advance-active {
+  background: var(--success) !important;
+  color: #000 !important;
+  border-color: var(--success) !important;
 }
 
 .rec-teleprompter-panel {
