@@ -700,7 +700,7 @@ body {
 }
 
 .rec-left {
-  flex: 0 0 auto;
+  flex: 0 0 40%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,8 +710,8 @@ body {
 
 .rec-canvas-wrapper {
   position: relative;
-  width: 270px;
-  height: 480px;
+  height: calc(100vh - 40px);
+  width: calc((100vh - 40px) * 9 / 16);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 0 40px rgba(0,0,0,0.8);
