@@ -935,11 +935,11 @@ const App = {
           this.showCurrentSlide();
           this.startPartTimer();
           this.startAutoscroll();
-        } else if (this.state.currentPart >= this.state.project.parts.length - 1) {
-          // Last slide — auto stop
+        } else if (this.state.autoAdvance && this.state.currentPart >= this.state.project.parts.length - 1) {
+          // Last slide + auto on — stop recording
           this.stopRecording();
         }
-        // If auto off and not last — just stop timer, keep recording
+        // If auto off — just stop timer, keep recording until manual stop
       }
     }, 1000);
   },
