@@ -13,7 +13,7 @@ const Segmentation = {
   maskCtx: null,
   videoCanvas: null,   // separate canvas for video frame
   videoCtx: null,
-  blurRadius: 4,
+  blurRadius: 8,
 
   async init() {
     if (this.loading || this.ready) return;
