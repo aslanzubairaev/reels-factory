@@ -14,6 +14,7 @@ const Canvas = {
   camSize: 1.0,       // camera window size multiplier
   camPosition: 'center', // 'left' | 'center' | 'right'
   bgRemoval: false,      // AI background removal mode
+  noCamera: false,       // background only, no camera
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
   transition: 'fade',
@@ -90,7 +91,10 @@ const Canvas = {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, w, h);
 
-    if (this.bgRemoval && this.currentLayout !== 'face_only') {
+    if (this.noCamera) {
+      // No camera mode: only background
+      this.drawBackground(ctx, w, h);
+    } else if (this.bgRemoval && this.currentLayout !== 'face_only') {
       // BG removal mode: full screen background + person silhouette on top
       this.drawBackground(ctx, w, h);
       this.drawPersonSilhouette(ctx, w, h);
@@ -309,6 +313,10 @@ const Canvas = {
 
   setBgRemoval(enabled) {
     this.bgRemoval = enabled;
+  },
+
+  setNoCamera(enabled) {
+    this.noCamera = enabled;
   },
 
   setTransition(type) {

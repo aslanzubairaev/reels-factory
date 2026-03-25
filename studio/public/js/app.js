@@ -135,6 +135,7 @@ const App = {
 
     // v2: Background mode toggle
     document.getElementById('bg-mode-btn')?.addEventListener('click', () => this.toggleBgMode());
+    document.getElementById('no-camera-btn')?.addEventListener('click', () => this.toggleNoCamera());
 
     // v2: Transition selector
     document.getElementById('transition-select')?.addEventListener('change', (e) => {
@@ -403,6 +404,15 @@ const App = {
     if (!cam) return;
 
     const segCanvas = document.getElementById('preview-segmentation-canvas');
+
+    // No camera mode — hide everything
+    if (this.noCamera) {
+      cam.style.display = 'none';
+      if (segCanvas) segCanvas.classList.add('hidden');
+      this.stopPreviewSegmentation();
+      return;
+    }
+
     // bgRemoval + face_only = normal camera (no segmentation)
     // bgRemoval + background = segmentation on, camera hidden
     if (this.bgRemoval && layout !== 'face_only') {
@@ -542,6 +552,29 @@ const App = {
     const cam = this.elements.cameraWindow;
     if (!cam) return;
     cam.style.setProperty('--cam-scale', this.state.camSize);
+  },
+
+  // === No Camera Mode (background only) ===
+
+  noCamera: false,
+
+  toggleNoCamera() {
+    this.noCamera = !this.noCamera;
+    const btn = document.getElementById('no-camera-btn');
+    const cam = this.elements.cameraWindow;
+    const segCanvas = document.getElementById('preview-segmentation-canvas');
+
+    if (this.noCamera) {
+      btn.textContent = 'С камерой';
+      btn.classList.add('no-bg');
+      if (cam) cam.style.display = 'none';
+      if (segCanvas) segCanvas.classList.add('hidden');
+      this.stopPreviewSegmentation();
+    } else {
+      btn.textContent = 'Без меня';
+      btn.classList.remove('no-bg');
+      this.showCurrentSlide();
+    }
   },
 
   // === Background Mode Toggle ===
@@ -750,6 +783,7 @@ const App = {
     Canvas.setCamPosition(this.state.camPosition);
     Canvas.setTransition(this.state.transition);
     Canvas.setBgRemoval(this.bgRemoval);
+    Canvas.setNoCamera(this.noCamera);
     Canvas.setMirror(this.state.mirrored);
     Canvas.startRendering();
 
