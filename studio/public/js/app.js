@@ -742,10 +742,16 @@ const App = {
   switchToPreview() {
     if (this.state.isRecording) this.stopRecording();
     Canvas.stopRendering();
+    this.stopPreviewSegmentation();
 
     this.state.screen = 'preview';
     this.elements.recordingScreen.classList.add('hidden');
     this.elements.previewScreen.classList.remove('hidden');
+
+    // Restore camera window visibility
+    const cam = this.elements.cameraWindow;
+    if (cam) cam.style.display = '';
+
     this.showCurrentSlide();
   },
 
