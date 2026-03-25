@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 1080px;
+  height: 1920px;
+  background: linear-gradient(160deg, #0f0f1a 0%, #1a1a2e 40%, #16213e 100%);
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 60px;
+}
+.title {
+  font-size: 56px;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 80px;
+  line-height: 1.2;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.items {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: 40px 48px;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+.item-icon {
+  font-size: 56px;
+  flex-shrink: 0;
+}
+.item-content { flex: 1; }
+.item-value {
+  font-size: 64px;
+  font-weight: 900;
+  color: #667eea;
+  line-height: 1;
+}
+.item-label {
+  font-size: 32px;
+  color: rgba(255,255,255,0.7);
+  margin-top: 8px;
+}
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+  margin-top: 16px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 6px;
+  transition: width 0.3s;
+}
+</style>
+</head>
+<body>
+  <div class="title" id="title">{{title}}</div>
+  <div class="items" id="items"></div>
+
+  <script>
+    const data = window.__SLIDE_DATA__ || {};
+    if (data.title) document.getElementById('title').textContent = data.title;
+    const container = document.getElementById('items');
+    (data.items || []).forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'item';
+      el.innerHTML = `
+        <div class="item-icon">${item.icon || ''}</div>
+        <div class="item-content">
+          <div class="item-value">${item.value || ''}</div>
+          <div class="item-label">${item.label || ''}</div>
+          ${item.progress != null ? `<div class="progress-bar"><div class="progress-fill" style="width:${item.progress}%"></div></div>` : ''}
+        </div>
+      `;
+      container.appendChild(el);
+    });
+  </script>
+</body>
+</html>

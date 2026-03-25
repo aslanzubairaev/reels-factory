@@ -32,8 +32,8 @@
           },
           "layout": {
             "type": "string",
-            "enum": ["full_background", "partial_background", "face_only"],
-            "description": "full_background = small camera window over full-screen background; partial_background = large camera with partial background; face_only = camera only, no background"
+            "enum": ["full_background", "face_only"],
+            "description": "full_background = small camera window over full-screen background; face_only = camera only, no background"
           },
           "timing_seconds": {
             "type": "integer",
@@ -41,16 +41,33 @@
           },
           "background_type": {
             "type": "string",
-            "enum": ["photo", "video", "none"],
-            "description": "photo = static image; video = short clip; none = no background (for face_only)"
+            "enum": ["photo", "video", "html_slide", "none"],
+            "description": "photo = static image; video = short clip; html_slide = rendered HTML template; none = no background (for face_only)"
           },
           "background_prompt": {
             "type": "string",
-            "description": "Prompt for background generation (always in English). Empty string for face_only."
+            "description": "Prompt for background generation (always in English). Empty string for face_only and html_slide."
           },
           "background_prompt_display": {
             "type": "string",
             "description": "Prompt translated to user language for display in studio. Optional."
+          },
+          "background_category": {
+            "type": "string",
+            "enum": ["infographic", "comparison", "text_slide", "mockup", "none"],
+            "description": "Category of HTML slide template. Required when background_type is html_slide."
+          },
+          "claim": {
+            "type": "string",
+            "description": "The claim/statement that the background should visually prove. Required when background_type is not none."
+          },
+          "visual_proof": {
+            "type": "string",
+            "description": "What the viewer should see as visual proof. Required when background_type is not none."
+          },
+          "slide_data": {
+            "type": "object",
+            "description": "Data for HTML slide template (numbers, text, colors). Required when background_type is html_slide."
           }
         }
       }

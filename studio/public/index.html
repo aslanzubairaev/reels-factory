@@ -117,7 +117,10 @@
         <textarea id="bg-prompt" placeholder="Промпт для генерации фона..."></textarea>
         <div class="prompt-actions">
           <button id="generate-btn" class="btn btn-secondary btn-sm">Сгенерировать</button>
+          <button id="upload-bg-btn" class="btn btn-secondary btn-sm">Загрузить свой</button>
+          <button id="remove-custom-btn" class="btn btn-danger btn-sm hidden">Убрать свой</button>
           <button id="cancel-generate-btn" class="btn btn-danger btn-sm hidden">Отменить</button>
+          <input type="file" id="upload-bg-input" accept="image/*,video/*" class="hidden">
           <div id="generate-spinner" class="generate-spinner hidden">
             <div class="spinner-small"></div>
             <span>Генерация...</span>
@@ -203,6 +206,10 @@
             <button id="rec-mode-perpart-btn" class="btn btn-secondary btn-sm">По слайдам</button>
           </div>
           <div class="auto-advance-row" style="margin-top:6px">
+            <span>Автослайд</span>
+            <button id="auto-advance-btn" class="btn btn-secondary btn-sm rec-mode-active">Авто: ВКЛ</button>
+          </div>
+          <div class="auto-advance-row" style="margin-top:6px">
             <span>Автостоп</span>
             <button id="auto-stop-btn" class="btn btn-secondary btn-sm rec-mode-active">Авто: ВКЛ</button>
           </div>
@@ -270,6 +277,7 @@
   <script src="/js/translate.js"></script>
   <script src="/js/segmentation.js"></script>
   <script src="/js/canvas.js"></script>
+  <script src="/js/html-slides.js"></script>
   <script src="/js/recorder.js"></script>
   <script src="/js/app.js"></script>
 

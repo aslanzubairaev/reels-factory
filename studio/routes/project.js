@@ -53,20 +53,34 @@ router.get('/project/:name', (req, res) => {
 
     const script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
 
-    // Check which backgrounds exist
+    // Check which backgrounds exist — priority: custom/ > backgrounds/ > slides/
+    const customDir = path.join(projectDir, 'assets', 'custom');
     const bgDir = path.join(projectDir, 'assets', 'backgrounds');
-    if (fs.existsSync(bgDir)) {
-      const bgFiles = fs.readdirSync(bgDir);
-      script.parts = script.parts.map(part => {
-        const jpgFile = `part_${part.part_number}_bg.jpg`;
-        const mp4File = `part_${part.part_number}_bg.mp4`;
-        return {
-          ...part,
-          background_file: bgFiles.includes(jpgFile) ? jpgFile :
-                           bgFiles.includes(mp4File) ? mp4File : null
-        };
-      });
-    }
+    const slidesDir = path.join(projectDir, 'assets', 'slides');
+    const customFiles = fs.existsSync(customDir) ? fs.readdirSync(customDir) : [];
+    const bgFiles = fs.existsSync(bgDir) ? fs.readdirSync(bgDir) : [];
+    const slideFiles = fs.existsSync(slidesDir) ? fs.readdirSync(slidesDir) : [];
+
+    script.parts = script.parts.map(part => {
+      const n = part.part_number;
+
+      // Check custom/ for any file matching part_N.*
+      const customFile = customFiles.find(f => f.match(new RegExp(`^part_${n}\\.(jpg|jpeg|png|webp|mp4|webm|mov)$`, 'i')));
+      const customType = customFile && /\.(mp4|webm|mov)$/i.test(customFile) ? 'video' : 'photo';
+
+      const jpgFile = `part_${n}_bg.jpg`;
+      const mp4File = `part_${n}_bg.mp4`;
+      const slideFile = `part_${n}_slide.png`;
+
+      return {
+        ...part,
+        custom_file: customFile || null,
+        custom_type: customFile ? customType : null,
+        background_file: bgFiles.includes(jpgFile) ? jpgFile :
+                         bgFiles.includes(mp4File) ? mp4File : null,
+        slide_file: slideFiles.includes(slideFile) ? slideFile : null
+      };
+    });
 
     res.json(script);
   } catch (err) {

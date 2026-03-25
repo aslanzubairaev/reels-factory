@@ -8,6 +8,20 @@ from jsonschema import validate, ValidationError
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'schemas', 'script.schema.json')
 
+VALID_SLIDE_CATEGORIES = {'infographic', 'comparison', 'text_slide', 'mockup'}
+
+INFOGRAPHIC_REQUIRED = {'title', 'items'}
+COMPARISON_REQUIRED = {'left_title', 'right_title', 'left_items', 'right_items'}
+TEXT_SLIDE_REQUIRED = {'text'}
+MOCKUP_REQUIRED = {'title', 'rows'}
+
+SLIDE_DATA_FIELDS = {
+    'infographic': INFOGRAPHIC_REQUIRED,
+    'comparison': COMPARISON_REQUIRED,
+    'text_slide': TEXT_SLIDE_REQUIRED,
+    'mockup': MOCKUP_REQUIRED,
+}
+
 
 def validate_script(script_path):
     errors = []
@@ -46,11 +60,41 @@ def validate_script(script_path):
 
     for p in parts:
         pn = p.get('part_number', '?')
+        bg_type = p.get('background_type', 'none')
+
+        # face_only checks
         if p.get('layout') == 'face_only':
-            if p.get('background_type') != 'none':
-                errors.append(f"Part {pn}: face_only must have background_type='none', got '{p.get('background_type')}'")
+            if bg_type != 'none':
+                errors.append(f"Part {pn}: face_only must have background_type='none', got '{bg_type}'")
             if p.get('background_prompt', '') != '':
                 errors.append(f"Part {pn}: face_only must have empty background_prompt")
+
+        # W-020: claim and visual_proof required when background_type != none
+        if bg_type != 'none':
+            if not p.get('claim', '').strip():
+                errors.append(f"Part {pn}: 'claim' is required when background_type='{bg_type}'")
+            if not p.get('visual_proof', '').strip():
+                errors.append(f"Part {pn}: 'visual_proof' is required when background_type='{bg_type}'")
+
+        # W-017: html_slide must not have AI prompt
+        if bg_type == 'html_slide':
+            if p.get('background_prompt', '') != '':
+                errors.append(f"Part {pn}: html_slide must have empty background_prompt")
+
+            # background_category required for html_slide
+            cat = p.get('background_category', '')
+            if cat not in VALID_SLIDE_CATEGORIES:
+                errors.append(f"Part {pn}: html_slide requires background_category in {VALID_SLIDE_CATEGORIES}, got '{cat}'")
+
+            # W-029: slide_data validation
+            slide_data = p.get('slide_data')
+            if not slide_data or not isinstance(slide_data, dict):
+                errors.append(f"Part {pn}: html_slide requires 'slide_data' object")
+            elif cat in SLIDE_DATA_FIELDS:
+                required = SLIDE_DATA_FIELDS[cat]
+                missing = required - set(slide_data.keys())
+                if missing:
+                    errors.append(f"Part {pn}: slide_data for '{cat}' missing fields: {missing}")
 
     part_numbers = [p.get('part_number', 0) for p in parts]
     expected = list(range(1, len(parts) + 1))

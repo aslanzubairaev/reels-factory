@@ -104,6 +104,31 @@ const App = {
     this.elements.cancelGenerateBtn?.addEventListener('click', () => this.cancelGeneration());
     this.elements.recordBtn?.addEventListener('click', () => this.switchToRecording());
 
+    // Upload custom background
+    document.getElementById('upload-bg-btn')?.addEventListener('click', () => {
+      document.getElementById('upload-bg-input')?.click();
+    });
+    document.getElementById('upload-bg-input')?.addEventListener('change', (e) => {
+      if (e.target.files[0]) this.uploadCustomBackground(e.target.files[0]);
+      e.target.value = '';
+    });
+    document.getElementById('remove-custom-btn')?.addEventListener('click', () => this.removeCustomBackground());
+
+    // Drag-and-drop on phone frame
+    const phoneFrame = document.getElementById('phone-frame');
+    if (phoneFrame) {
+      phoneFrame.addEventListener('dragover', (e) => { e.preventDefault(); phoneFrame.classList.add('drag-over'); });
+      phoneFrame.addEventListener('dragleave', () => phoneFrame.classList.remove('drag-over'));
+      phoneFrame.addEventListener('drop', (e) => {
+        e.preventDefault();
+        phoneFrame.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+          this.uploadCustomBackground(file);
+        }
+      });
+    }
+
     // v2: Camera size slider
     document.getElementById('cam-size-slider')?.addEventListener('input', (e) => {
       const val = parseFloat(e.target.value);
@@ -217,13 +242,16 @@ const App = {
     // Recording mode buttons
     document.getElementById('rec-mode-continuous-btn')?.addEventListener('click', () => {
       this.state.recordingMode = 'continuous';
-      this.state.autoAdvance = true;
       this.updateRecModeButtons();
     });
     document.getElementById('rec-mode-perpart-btn')?.addEventListener('click', () => {
       this.state.recordingMode = 'per_part';
-      this.state.autoAdvance = false;
       this.updateRecModeButtons();
+    });
+    // Auto-advance toggle
+    document.getElementById('auto-advance-btn')?.addEventListener('click', () => {
+      this.state.autoAdvance = !this.state.autoAdvance;
+      this.updateAutoAdvanceBtn();
     });
     // Auto-stop toggle
     document.getElementById('auto-stop-btn')?.addEventListener('click', () => {
@@ -376,6 +404,9 @@ const App = {
       Background.show(null);
     }
 
+    // Update custom background button visibility
+    this.updateCustomBtn();
+
     // Apply transition animation in Preview
     this.playTransition();
 
@@ -475,6 +506,10 @@ const App = {
     if (this.state.currentPart > 0) {
       this.state.currentPart--;
       this.showCurrentSlide();
+      if (this.state.isRecording) {
+        this.startPartTimer();
+        this.startAutoscroll();
+      }
     }
   },
 
@@ -482,6 +517,10 @@ const App = {
     if (this.state.currentPart < this.state.project.parts.length - 1) {
       this.state.currentPart++;
       this.showCurrentSlide();
+      if (this.state.isRecording) {
+        this.startPartTimer();
+        this.startAutoscroll();
+      }
     }
   },
 
@@ -531,6 +570,18 @@ const App = {
     }
     if (partBtn) {
       partBtn.classList.toggle('rec-mode-active', this.state.recordingMode === 'per_part');
+    }
+  },
+
+  updateAutoAdvanceBtn() {
+    const btn = document.getElementById('auto-advance-btn');
+    if (!btn) return;
+    if (this.state.autoAdvance) {
+      btn.textContent = 'Авто: ВКЛ';
+      btn.classList.add('rec-mode-active');
+    } else {
+      btn.textContent = 'Авто: ВЫКЛ';
+      btn.classList.remove('rec-mode-active');
     }
   },
 
@@ -806,6 +857,11 @@ const App = {
     const part = this.state.project.parts[this.state.currentPart];
     if (!part || part.background_type === 'none') return;
 
+    // html_slide uses regenerateSlide instead
+    if (part.background_type === 'html_slide') {
+      return this.regenerateSlide(part.slide_data);
+    }
+
     const prompt = this.elements.bgPrompt.value.trim();
     if (!prompt) return alert('Введите промпт');
 
@@ -836,6 +892,90 @@ const App = {
       this.elements.generateBtn.classList.remove('hidden');
       this.elements.cancelGenerateBtn.classList.add('hidden');
       spinner?.classList.add('hidden');
+    }
+  },
+
+  async regenerateSlide(slideData) {
+    const part = this.state.project.parts[this.state.currentPart];
+    if (!part || part.background_type !== 'html_slide') return;
+
+    const spinner = document.getElementById('generate-spinner');
+    spinner?.classList.remove('hidden');
+
+    try {
+      const template = part.background_category || 'text_slide';
+      const result = await HtmlSlides.generate(
+        this.state.projectName,
+        part.part_number,
+        template,
+        slideData || part.slide_data
+      );
+
+      if (result.file) {
+        part.slide_file = result.file;
+        await Background.preloadAll(this.state.project, this.state.projectName);
+        Background.show(part.part_number);
+      }
+    } catch (e) {
+      alert('Ошибка генерации слайда: ' + e.message);
+    } finally {
+      spinner?.classList.add('hidden');
+    }
+  },
+
+  async uploadCustomBackground(file) {
+    const part = this.state.project.parts[this.state.currentPart];
+    if (!part || part.background_type === 'none') return;
+
+    const spinner = document.getElementById('generate-spinner');
+    spinner?.classList.remove('hidden');
+
+    try {
+      const result = await API.uploadBackground(
+        this.state.projectName,
+        part.part_number,
+        file
+      );
+
+      if (result.file) {
+        part.custom_file = result.file;
+        part.custom_type = result.type;
+        await Background.preloadAll(this.state.project, this.state.projectName);
+        Background.show(part.part_number);
+        this.updateCustomBtn();
+      }
+    } catch (e) {
+      alert('Ошибка загрузки: ' + e.message);
+    } finally {
+      spinner?.classList.add('hidden');
+    }
+  },
+
+  async removeCustomBackground() {
+    const part = this.state.project.parts[this.state.currentPart];
+    if (!part || !part.custom_file) return;
+
+    try {
+      await API.deleteCustomBackground(this.state.projectName, part.part_number);
+      part.custom_file = null;
+      part.custom_type = null;
+      await Background.preloadAll(this.state.project, this.state.projectName);
+      Background.show(part.part_number);
+      this.showCurrentSlide();
+    } catch (e) {
+      alert('Ошибка удаления: ' + e.message);
+    }
+  },
+
+  updateCustomBtn() {
+    const part = this.state.project?.parts[this.state.currentPart];
+    const removeBtn = document.getElementById('remove-custom-btn');
+    if (removeBtn) {
+      if (part?.custom_file) {
+        removeBtn.classList.remove('hidden');
+      } else {
+        removeBtn.classList.add('hidden');
+      }
     }
   },
 
@@ -1087,17 +1227,22 @@ const App = {
       this.updateTimerDisplay();
       if (this.state.partTimer <= 0) {
         this.stopPartTimer();
-        if (this.state.autoAdvance && this.state.currentPart < this.state.project.parts.length - 1) {
-          // Auto-advance to next slide
-          this.state.currentPart++;
-          this.showCurrentSlide();
-          this.startPartTimer();
-          this.startAutoscroll();
-        } else if (this.state.autoStop) {
-          // Auto-stop: last slide (continuous) or current slide done (per_part)
-          this.stopRecording();
+        if (this.state.recordingMode === 'per_part') {
+          // Per-slide mode: never advance, auto-stop if enabled
+          if (this.state.autoStop) this.stopRecording();
+        } else if (this.state.currentPart < this.state.project.parts.length - 1) {
+          // Continuous, not last slide: advance if auto-advance on
+          if (this.state.autoAdvance) {
+            this.state.currentPart++;
+            this.showCurrentSlide();
+            this.startPartTimer();
+            this.startAutoscroll();
+          }
+        } else {
+          // Continuous, last slide: auto-stop if enabled
+          if (this.state.autoStop) this.stopRecording();
         }
-        // If autoStop off — keep recording until manual stop
+        // Otherwise keep recording until manual stop
       }
     }, 1000);
   },

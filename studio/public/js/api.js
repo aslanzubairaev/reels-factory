@@ -33,6 +33,37 @@ const API = {
     return res.json();
   },
 
+  getCustomUrl(project, file) {
+    return `${this.baseUrl}/api/assets/${encodeURIComponent(project)}/custom/${encodeURIComponent(file)}`;
+  },
+
+  async uploadBackground(project, partNumber, file) {
+    const formData = new FormData();
+    formData.append('project', project);
+    formData.append('part_number', partNumber);
+    formData.append('file', file);
+
+    const res = await fetch(`${this.baseUrl}/api/upload-background`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Upload failed');
+    }
+    return res.json();
+  },
+
+  async deleteCustomBackground(project, partNumber) {
+    const res = await fetch(`${this.baseUrl}/api/upload-background`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project, part_number: partNumber })
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    return res.json();
+  },
+
   async saveRecording(project, filename, videoBlob) {
     const formData = new FormData();
     formData.append('project', project);

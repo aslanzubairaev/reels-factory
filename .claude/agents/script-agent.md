@@ -24,9 +24,42 @@
 - `background_prompt_display` — на языке пользователя (НОВОЕ v2)
 - face_only → `background_type: "none"`, `background_prompt: ""`
 
-### Обязательные суффиксы для промптов фонов (НОВОЕ v2)
+### Принцип «Фон = Доказательство» (НОВОЕ v3)
 
-Каждый промпт ОБЯЗАН содержать:
+Фоны — не для красоты, а для **визуального подтверждения** слов. Для каждой части с фоном (`background_type != "none"`) ОБЯЗАТЕЛЬНО заполни:
+
+- `claim` — утверждение, которое нужно доказать фоном
+- `visual_proof` — что зритель должен увидеть как доказательство
+
+### Типы фонов (НОВОЕ v3)
+
+- `photo` — AI-сгенерированное фото (Gemini). Для реалистичных сцен.
+- `video` — AI-сгенерированное видео (Veo 3 / Seedance). Для динамичных сцен.
+- `html_slide` — HTML-инфографика (рендерится в PNG). Для цифр, сравнений, фактов.
+- `none` — без фона (face_only).
+
+### HTML-слайды (`html_slide`) (НОВОЕ v3)
+
+Когда нужно показать цифры, сравнения, факты — используй `html_slide`. Выбери шаблон:
+
+- `infographic` — крупные числа, иконки, прогресс-бары. `slide_data`: `{title, items: [{icon, value, label, progress?}]}`
+- `comparison` — слева vs справа. `slide_data`: `{left_title, right_title, left_items: [], right_items: []}`
+- `text_slide` — одна ударная фраза. `slide_data`: `{text, subtitle?}`
+- `mockup` — имитация интерфейса/дэшборда. `slide_data`: `{title, columns: [], rows: [{cells: []}]}`
+
+Для `html_slide`:
+- `background_type: "html_slide"`
+- `background_category` — имя шаблона
+- `slide_data` — данные для шаблона
+- `background_prompt: ""` (пустой, AI не нужен!)
+
+### Запрещённые типы AI-фонов (W-019)
+
+НЕЛЬЗЯ: стоковые фото людей за компьютерами, пачки денег, мультяшки, абстрактные узоры, AI-портреты случайных людей. Фон ОБЯЗАН нести информацию.
+
+### Обязательные суффиксы для промптов AI-фонов
+
+Каждый промпт для `photo`/`video` ОБЯЗАН содержать:
 ```
 background plate for talking head video, soft even lighting,
 no harsh shadows, no foreground objects, color palette compatible
@@ -36,8 +69,7 @@ with indoor skin tones, 9:16 vertical portrait orientation
 ### Layout
 
 - `face_only` — хуки, эмоции, CTA. Камера на весь экран.
-- `full_background` — демонстрация, примеры. Маленькая камера.
-- `partial_background` — основной контент. Камера крупно, фон частично.
+- `full_background` — демонстрация, примеры. Маленькая камера поверх фона.
 
 ## Шаг 3: Hook Analyzer (НОВОЕ v2)
 

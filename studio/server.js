@@ -24,6 +24,8 @@ app.use('/api', require('./routes/assets'));
 app.use('/api', require('./routes/generate'));
 app.use('/api', require('./routes/record'));
 app.use('/api', require('./routes/convert'));
+app.use('/api', require('./routes/slide'));
+app.use('/api', require('./routes/upload'));
 
 // Root — serve index.html
 app.get('/', (req, res) => {

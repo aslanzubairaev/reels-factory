@@ -30,10 +30,16 @@ const Teleprompter = {
     }
 
     if (this.typeBadgeElement) {
-      this.typeBadgeElement.textContent = (part.background_type || 'none').toUpperCase();
+      if (part.custom_file) {
+        this.typeBadgeElement.textContent = 'CUSTOM';
+        this.typeBadgeElement.className = 'badge badge-custom';
+      } else {
+        this.typeBadgeElement.textContent = (part.background_type || 'none').toUpperCase();
+        this.typeBadgeElement.className = 'badge badge-type';
+      }
     }
 
-    // Prompt — hide entire section for face_only
+    // Prompt section — hide for face_only, show slide editor for html_slide
     if (this.promptSection) {
       if (part.background_type === 'none') {
         this.promptSection.classList.add('hidden');
@@ -42,11 +48,33 @@ const Teleprompter = {
       }
     }
 
+    // Remove previous slide editor if any
+    const oldEditor = this.promptSection?.querySelector('.slide-editor');
+    if (oldEditor) oldEditor.remove();
+
     if (this.promptElement) {
       if (part.background_type === 'none') {
         this.promptElement.value = '';
         this.promptElement.disabled = true;
+        this.promptElement.style.display = '';
+      } else if (part.background_type === 'html_slide') {
+        // Hide prompt textarea, show slide data editor
+        this.promptElement.style.display = 'none';
+        // Hide generate button for slides
+        const genBtn = document.getElementById('generate-btn');
+        if (genBtn) genBtn.style.display = 'none';
+        // Create slide editor
+        if (this.promptSection && typeof HtmlSlides !== 'undefined') {
+          const editor = HtmlSlides.createEditor(part, (newData) => {
+            // Trigger regeneration via App
+            if (typeof App !== 'undefined') App.regenerateSlide(newData);
+          });
+          this.promptSection.appendChild(editor);
+        }
       } else {
+        this.promptElement.style.display = '';
+        const genBtn = document.getElementById('generate-btn');
+        if (genBtn) genBtn.style.display = '';
         const displayPrompt = Translate.getDisplayPrompt(part);
         this.promptElement.value = displayPrompt;
         this.promptElement.disabled = false;

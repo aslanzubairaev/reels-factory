@@ -377,29 +377,12 @@ body {
   transform: none !important;
 }
 
-/* partial_background same as full_background */
-.camera-window.layout-partial_background {
-  bottom: 20px;
-  top: auto !important;
-  width: calc(180px * var(--cam-scale)) !important;
-  height: calc(120px * var(--cam-scale)) !important;
-  border-radius: 16px;
-}
-
 /* Circle shape — perfect circle */
 .camera-window.shape-circle.layout-full_background {
   width: calc(140px * var(--cam-scale)) !important;
   height: calc(140px * var(--cam-scale)) !important;
   border-radius: 50% !important;
 }
-
-/* partial_background circle same as full_background */
-.camera-window.shape-circle.layout-partial_background {
-  width: calc(140px * var(--cam-scale)) !important;
-  height: calc(140px * var(--cam-scale)) !important;
-  border-radius: 50% !important;
-}
-
 
 /* v2: Camera controls — vertical stack */
 .camera-controls {
@@ -523,11 +506,6 @@ body {
 .layout-badge.layout-full_background {
   background: rgba(108, 99, 255, 0.15);
   color: var(--accent);
-}
-
-.layout-badge.layout-partial_background {
-  background: rgba(255, 165, 2, 0.15);
-  color: var(--warning);
 }
 
 #timing-info {
@@ -1220,4 +1198,84 @@ body {
     width: 240px;
     height: 427px;
   }
+}
+
+/* HTML Slide Editor */
+.slide-editor {
+  margin-top: 12px;
+}
+
+.slide-category-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(102, 126, 234, 0.15);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.slide-claim {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.slide-data-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.slide-data-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 12px;
+  padding: 10px;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.slide-btn-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Custom background badge */
+.badge-custom {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+/* Drag-and-drop overlay on phone frame */
+.phone-frame.drag-over {
+  outline: 3px dashed #667eea;
+  outline-offset: -3px;
+}
+.phone-frame.drag-over::after {
+  content: 'Drop file here';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 26, 0.8);
+  color: #667eea;
+  font-size: 18px;
+  font-weight: 700;
+  z-index: 100;
+  pointer-events: none;
+  border-radius: inherit;
 }

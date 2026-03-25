@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 1080px;
+  height: 1920px;
+  background: linear-gradient(160deg, #0f0f1a 0%, #1a1a2e 40%, #16213e 100%);
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 50px;
+}
+.header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+.vs-text {
+  font-size: 36px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 4px;
+}
+.columns {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  max-height: 1400px;
+}
+.column {
+  flex: 1;
+  border-radius: 24px;
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+}
+.column-left {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.column-right {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.column-title {
+  font-size: 40px;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 40px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+}
+.column-left .column-title { color: #ef4444; }
+.column-right .column-title { color: #22c55e; }
+.column-items {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  flex: 1;
+}
+.column-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  font-size: 30px;
+  line-height: 1.4;
+}
+.column-item-icon {
+  flex-shrink: 0;
+  font-size: 32px;
+  margin-top: 2px;
+}
+.column-left .column-item-icon { color: #ef4444; }
+.column-right .column-item-icon { color: #22c55e; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="vs-text" id="vs-text">VS</div>
+  </div>
+  <div class="columns">
+    <div class="column column-left">
+      <div class="column-title" id="left-title">{{left_title}}</div>
+      <div class="column-items" id="left-items"></div>
+    </div>
+    <div class="column column-right">
+      <div class="column-title" id="right-title">{{right_title}}</div>
+      <div class="column-items" id="right-items"></div>
+    </div>
+  </div>
+
+  <script>
+    const data = window.__SLIDE_DATA__ || {};
+    if (data.left_title) document.getElementById('left-title').textContent = data.left_title;
+    if (data.right_title) document.getElementById('right-title').textContent = data.right_title;
+    if (data.vs_text) document.getElementById('vs-text').textContent = data.vs_text;
+
+    function fillItems(containerId, items, icon) {
+      const container = document.getElementById(containerId);
+      (items || []).forEach(text => {
+        const el = document.createElement('div');
+        el.className = 'column-item';
+        el.innerHTML = `<span class="column-item-icon">${icon}</span><span>${text}</span>`;
+        container.appendChild(el);
+      });
+    }
+    fillItems('left-items', data.left_items, data.left_icon || '✗');
+    fillItems('right-items', data.right_items, data.right_icon || '✓');
+  </script>
+</body>
+</html>

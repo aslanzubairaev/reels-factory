@@ -157,6 +157,7 @@ const Canvas = {
     if (this.mirrorRecording) {
       ctx.translate(w, 0);
       ctx.scale(-1, 1);
+      dx = -dx;
     }
     ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
     ctx.restore();
@@ -198,24 +199,6 @@ const Canvas = {
         dh = Math.round(dw * 2 / 3);
       }
       // Position: left / center / right
-      const margin = Math.round(w * 0.03);
-      if (this.camPosition === 'left') {
-        dx = margin;
-      } else if (this.camPosition === 'right') {
-        dx = w - dw - margin;
-      } else {
-        dx = Math.round((w - dw) / 2);
-      }
-      dy = h - dh - Math.round(h * 0.04);
-    } else if (layout === 'partial_background') {
-      const s = this.camSize;
-      if (this.cameraShape === 'circle') {
-        const size = Math.round(w * 0.3 * s);
-        dw = size; dh = size;
-      } else {
-        dw = Math.round(w * 0.4 * s);
-        dh = Math.round(dw * 2 / 3);
-      }
       const margin = Math.round(w * 0.03);
       if (this.camPosition === 'left') {
         dx = margin;
