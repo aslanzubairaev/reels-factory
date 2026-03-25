@@ -732,8 +732,7 @@ const App = {
     Canvas.setCamPosition(this.state.camPosition);
     Canvas.setTransition(this.state.transition);
     Canvas.setBgRemoval(this.bgRemoval);
-    // W-018: recording is non-mirrored by default
-    Canvas.setMirror(false);
+    Canvas.setMirror(this.state.mirrored);
     Canvas.startRendering();
 
     this.state.recordingDone = false;
