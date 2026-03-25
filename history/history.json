@@ -1,13 +1,3 @@
 {
-  "projects": [
-    {
-      "name": "2026-03-23_travel-life-hacks",
-      "date": "2026-03-23",
-      "idea": "5 вещей, которые шокируют в Турции",
-      "language": "ru",
-      "parts_count": 7,
-      "total_duration": 75,
-      "status": "completed"
-    }
-  ]
+  "projects": []
 }
