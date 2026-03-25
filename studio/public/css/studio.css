@@ -1094,6 +1094,117 @@ body {
   min-width: 120px;
 }
 
+/* === Click Animations === */
+
+.click-anim-pulse {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: clickPulse 0.6s ease-out forwards;
+}
+
+@keyframes clickPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.2);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+    box-shadow: 0 0 30px 15px rgba(255, 255, 255, 0);
+  }
+}
+
+.click-anim-ring {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: transparent;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: clickRing 0.8s ease-out forwards;
+}
+
+@keyframes clickRing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 1;
+    border-width: 3px;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.5);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+.click-anim-spark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: clickSpark 0.5s ease-out forwards;
+}
+
+@keyframes clickSpark {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.click-anim-target {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: clickTarget 0.5s ease-out forwards;
+}
+
+@keyframes clickTarget {
+  0% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+  40% { transform: translate(-50%, -50%) scale(0.9); opacity: 1; }
+  60% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.click-anim-glow {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: clickGlow 0.7s ease-out forwards;
+}
+
+@keyframes clickGlow {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+  30% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
 /* === Responsive === */
 
 @media (max-width: 900px) {

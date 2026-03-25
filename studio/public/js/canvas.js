@@ -17,6 +17,7 @@ const Canvas = {
   noCamera: false,       // background only, no camera
   cameraShape: 'rounded-rect', // 'circle' | 'rounded-rect' | 'oval' (W-013)
   mirrorRecording: false,       // W-018: false = non-mirrored for recording
+  clickAnims: [],              // active click animations
   transition: 'fade',
   transitionProgress: 1,       // 0 = start, 1 = done
   transitionDuration: 400,     // ms
@@ -103,6 +104,9 @@ const Canvas = {
       this.drawBackground(ctx, w, h);
       this.drawCamera(ctx, w, h);
     }
+
+    // Draw click animations on top
+    this.drawClickAnims(ctx);
 
     ctx.restore();
   },
@@ -317,6 +321,81 @@ const Canvas = {
 
   setNoCamera(enabled) {
     this.noCamera = enabled;
+  },
+
+  addClickAnim(x, y, type) {
+    const durations = { pulse: 600, rings: 800, spark: 500, target: 500, glow: 700 };
+    this.clickAnims.push({ x, y, type, start: performance.now(), duration: durations[type] || 600 });
+  },
+
+  drawClickAnims(ctx) {
+    const now = performance.now();
+    this.clickAnims = this.clickAnims.filter(a => now - a.start < a.duration);
+
+    for (const a of this.clickAnims) {
+      const p = (now - a.start) / a.duration;
+      ctx.save();
+      if (a.type === 'pulse') {
+        const r = 20 + p * 60;
+        const alpha = 1 - p;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.4})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
+        ctx.lineWidth = 3 - p * 2;
+        ctx.stroke();
+      } else if (a.type === 'rings') {
+        for (let i = 0; i < 2; i++) {
+          const delay = i * 0.15;
+          const rp = Math.max(0, (p - delay) / (1 - delay));
+          if (rp <= 0 || rp >= 1) continue;
+          const r = 10 + rp * 80;
+          const alpha = 1 - rp;
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+          ctx.lineWidth = 3 - rp * 2;
+          ctx.stroke();
+        }
+      } else if (a.type === 'spark') {
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const dist = 40 + Math.sin(i * 7) * 20;
+          const sx = a.x + Math.cos(angle) * dist * p;
+          const sy = a.y + Math.sin(angle) * dist * p;
+          const alpha = 1 - p;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 4 * (1 - p), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.fill();
+        }
+      } else if (a.type === 'target') {
+        const scale = p < 0.4 ? 2 - (p / 0.4) * 1.1 : p < 0.6 ? 0.9 + ((p - 0.4) / 0.2) * 0.15 : 1.05 - ((p - 0.6) / 0.4) * 0.05;
+        const alpha = p < 0.6 ? Math.min(1, p / 0.2) : 1 - (p - 0.6) / 0.4;
+        const size = 50 * scale;
+        const r = 4;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(a.x - size / 2, a.y - size / 2, size, size, r);
+        ctx.stroke();
+      } else if (a.type === 'glow') {
+        const scale = 0.5 + p * 2.5;
+        const alpha = p < 0.3 ? p / 0.3 : 1 - (p - 0.3) / 0.7;
+        const r = 30 * scale;
+        const grad = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, r);
+        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.8})`);
+        grad.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.3})`);
+        grad.addColorStop(1, `rgba(255, 255, 255, 0)`);
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   },
 
   setTransition(type) {

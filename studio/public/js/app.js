@@ -23,6 +23,7 @@ const App = {
     camPosition: 'center', // 'left' | 'center' | 'right'
     transition: 'fade',    // 'fade' | 'slide' | 'zoom' | 'cut'
     mirrored: true,  // Preview = mirrored by default (W-018)
+    clickAnim: 'pulse', // 'none' | 'pulse' | 'rings'
     darkTheme: true
   },
 
@@ -136,6 +137,15 @@ const App = {
     // v2: Background mode toggle
     document.getElementById('bg-mode-btn')?.addEventListener('click', () => this.toggleBgMode());
     document.getElementById('no-camera-btn')?.addEventListener('click', () => this.toggleNoCamera());
+
+    // Click animation select
+    document.getElementById('click-anim-select')?.addEventListener('change', (e) => {
+      this.state.clickAnim = e.target.value;
+    });
+
+    // Click animation on phone frame (preview) and canvas wrapper (recording)
+    document.getElementById('phone-frame')?.addEventListener('click', (e) => this.handleClickAnim(e));
+    document.querySelector('.rec-canvas-wrapper')?.addEventListener('click', (e) => this.handleClickAnim(e));
 
     // v2: Transition selector
     document.getElementById('transition-select')?.addEventListener('change', (e) => {
@@ -534,6 +544,103 @@ const App = {
       btn.textContent = 'Авто: ВЫКЛ';
       btn.classList.remove('rec-mode-active');
     }
+  },
+
+  // === Click Animation ===
+
+  handleClickAnim(e) {
+    if (this.state.clickAnim === 'none') return;
+
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const anim = this.state.clickAnim;
+    if (anim === 'pulse') {
+      this.createPulseAnim(container, x, y);
+    } else if (anim === 'rings') {
+      this.createRingsAnim(container, x, y);
+    } else if (anim === 'spark') {
+      this.createSparkAnim(container, x, y);
+    } else if (anim === 'target') {
+      this.createTargetAnim(container, x, y);
+    } else if (anim === 'glow') {
+      this.createGlowAnim(container, x, y);
+    }
+
+    // Also draw on recording canvas if recording
+    if (this.state.isRecording && this.state.screen === 'recording') {
+      const scaleX = Canvas.width / rect.width;
+      const scaleY = Canvas.height / rect.height;
+      Canvas.addClickAnim(x * scaleX, y * scaleY, this.state.clickAnim);
+    }
+  },
+
+  createPulseAnim(container, x, y) {
+    const el = document.createElement('div');
+    el.className = 'click-anim-pulse';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  },
+
+  createRingsAnim(container, x, y) {
+    for (let i = 0; i < 2; i++) {
+      const el = document.createElement('div');
+      el.className = 'click-anim-ring';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.animationDelay = (i * 150) + 'ms';
+      container.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+  },
+
+  createSparkAnim(container, x, y) {
+    const count = 8;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const dist = 25 + Math.random() * 15;
+      const el = document.createElement('div');
+      el.className = 'click-anim-spark';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+      el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+      el.style.animation = 'none';
+      container.appendChild(el);
+      // Animate via JS for custom direction
+      const startTime = performance.now();
+      const animate = () => {
+        const p = (performance.now() - startTime) / 500;
+        if (p >= 1) { el.remove(); return; }
+        el.style.left = (x + Math.cos(angle) * dist * p) + 'px';
+        el.style.top = (y + Math.sin(angle) * dist * p) + 'px';
+        el.style.opacity = 1 - p;
+        requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }
+  },
+
+  createTargetAnim(container, x, y) {
+    const el = document.createElement('div');
+    el.className = 'click-anim-target';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  },
+
+  createGlowAnim(container, x, y) {
+    const el = document.createElement('div');
+    el.className = 'click-anim-glow';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
   },
 
   // === Camera Position ===
