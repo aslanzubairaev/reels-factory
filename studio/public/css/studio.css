@@ -899,6 +899,12 @@ body {
   border-color: var(--success) !important;
 }
 
+.rec-mode-active {
+  background: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+}
+
 .rec-teleprompter-panel {
   flex: 1;
   min-height: 120px;

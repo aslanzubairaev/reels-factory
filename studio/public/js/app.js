@@ -16,6 +16,7 @@ const App = {
     partTimerInterval: null,
     recordingDone: false,
     autoAdvance: true,
+    autoStop: true,
     cameraShape: 'rounded-rect',
     zoom: 1.0,
     camSize: 1.0,
@@ -202,10 +203,21 @@ const App = {
       }
     });
 
-    // Auto-advance toggle
-    document.getElementById('auto-advance-btn')?.addEventListener('click', () => {
-      this.state.autoAdvance = !this.state.autoAdvance;
-      this.updateAutoAdvanceBtn();
+    // Recording mode buttons
+    document.getElementById('rec-mode-continuous-btn')?.addEventListener('click', () => {
+      this.state.recordingMode = 'continuous';
+      this.state.autoAdvance = true;
+      this.updateRecModeButtons();
+    });
+    document.getElementById('rec-mode-perpart-btn')?.addEventListener('click', () => {
+      this.state.recordingMode = 'per_part';
+      this.state.autoAdvance = false;
+      this.updateRecModeButtons();
+    });
+    // Auto-stop toggle
+    document.getElementById('auto-stop-btn')?.addEventListener('click', () => {
+      this.state.autoStop = !this.state.autoStop;
+      this.updateAutoStopBtn();
     });
 
     // Review buttons
@@ -491,20 +503,26 @@ const App = {
 
   // === Auto-Advance ===
 
-  disableAutoAdvance() {
-    this.state.autoAdvance = false;
-    this.updateAutoAdvanceBtn();
+  updateRecModeButtons() {
+    const contBtn = document.getElementById('rec-mode-continuous-btn');
+    const partBtn = document.getElementById('rec-mode-perpart-btn');
+    if (contBtn) {
+      contBtn.classList.toggle('rec-mode-active', this.state.recordingMode === 'continuous');
+    }
+    if (partBtn) {
+      partBtn.classList.toggle('rec-mode-active', this.state.recordingMode === 'per_part');
+    }
   },
 
-  updateAutoAdvanceBtn() {
-    const btn = document.getElementById('auto-advance-btn');
+  updateAutoStopBtn() {
+    const btn = document.getElementById('auto-stop-btn');
     if (!btn) return;
-    if (this.state.autoAdvance) {
+    if (this.state.autoStop) {
       btn.textContent = 'Авто: ВКЛ';
-      btn.classList.add('auto-advance-active');
+      btn.classList.add('rec-mode-active');
     } else {
       btn.textContent = 'Авто: ВЫКЛ';
-      btn.classList.remove('auto-advance-active');
+      btn.classList.remove('rec-mode-active');
     }
   },
 
@@ -824,7 +842,6 @@ const App = {
 
     this.state.isRecording = true;
     this.state.recordingDone = false;
-    this.state.recordingMode = 'continuous';
 
     const canvasStream = Canvas.getStream(30);
     const audioTrack = Camera.getAudioTrack();
@@ -935,11 +952,11 @@ const App = {
           this.showCurrentSlide();
           this.startPartTimer();
           this.startAutoscroll();
-        } else if (this.state.autoAdvance && this.state.currentPart >= this.state.project.parts.length - 1) {
-          // Last slide + auto on — stop recording
+        } else if (this.state.autoStop) {
+          // Auto-stop: last slide (continuous) or current slide done (per_part)
           this.stopRecording();
         }
-        // If auto off — just stop timer, keep recording until manual stop
+        // If autoStop off — keep recording until manual stop
       }
     }, 1000);
   },
