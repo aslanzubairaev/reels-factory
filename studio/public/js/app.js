@@ -356,18 +356,19 @@ const App = {
     // Apply transition animation in Preview
     this.playTransition();
 
-    // Hide size/position only on face_only without bgRemoval
-    const hideControls = part.layout === 'face_only' && !this.bgRemoval;
+    // Hide size/position on face_only (bgRemoval doesn't apply on face_only)
+    const hideControls = part.layout === 'face_only';
     const sizeSlider = document.getElementById('cam-size-slider')?.closest('.camera-controls-row');
     const posRow = document.getElementById('cam-position-row');
     if (sizeSlider) sizeSlider.style.display = hideControls ? 'none' : 'flex';
     if (posRow) posRow.style.display = hideControls ? 'none' : 'flex';
 
-    // Hide zoom and shape select in bgRemoval mode (not relevant)
+    // Hide zoom and shape select in bgRemoval mode (only when not face_only)
+    const bgRemovalActive = this.bgRemoval && part.layout !== 'face_only';
     const zoomRow = document.getElementById('zoom-slider')?.closest('.camera-controls-row');
     const shapeSelect = document.getElementById('camera-shape-select');
-    if (zoomRow) zoomRow.style.display = this.bgRemoval ? 'none' : 'flex';
-    if (shapeSelect) shapeSelect.style.display = this.bgRemoval ? 'none' : '';
+    if (zoomRow) zoomRow.style.display = bgRemovalActive ? 'none' : 'flex';
+    if (shapeSelect) shapeSelect.style.display = bgRemovalActive ? 'none' : '';
     Teleprompter.show(part, this.state.project.parts.length);
     this.updateCameraLayout(part.layout);
     Canvas.setLayout(part.layout);
@@ -389,13 +390,22 @@ const App = {
     const cam = this.elements.cameraWindow;
     if (!cam) return;
 
-    // If bgRemoval is on, completely hide camera window
-    if (this.bgRemoval) {
+    const segCanvas = document.getElementById('preview-segmentation-canvas');
+    // bgRemoval + face_only = normal camera (no segmentation)
+    // bgRemoval + background = segmentation on, camera hidden
+    if (this.bgRemoval && layout !== 'face_only') {
       cam.style.display = 'none';
-      return;
+      if (segCanvas) {
+        segCanvas.classList.remove('hidden');
+        this.startPreviewSegmentation(segCanvas);
+      }
+    } else {
+      if (this.bgRemoval && layout === 'face_only') {
+        if (segCanvas) segCanvas.classList.add('hidden');
+        this.stopPreviewSegmentation();
+      }
+      cam.style.display = '';
     }
-
-    cam.style.display = '';
     cam.className = 'camera-window';
     cam.classList.add(`layout-${layout}`);
     cam.classList.add(`shape-${this.state.cameraShape}`);
@@ -581,14 +591,23 @@ const App = {
 
       const source = segResult || video;
 
-      // Draw at bottom, full width, height controlled by size slider
-      const size = this.state.camSize;
-      const dw = w; // always full width — no side borders
-      const dh = Math.round(h * 0.5 * size);
-      const dy = h - dh;
-      const shift = Math.round(w * 0.2);
-      const pos = this.state.camPosition;
-      let dx = pos === 'left' ? -shift : pos === 'right' ? shift : 0;
+      // face_only = full screen, otherwise bottom half with size control
+      const layout = this.state.project?.parts[this.state.currentPart]?.layout;
+      let dw, dh, dy, dx;
+      if (layout === 'face_only') {
+        dw = w;
+        dh = h;
+        dy = 0;
+        dx = 0;
+      } else {
+        const size = this.state.camSize;
+        dw = w;
+        dh = Math.round(h * 0.5 * size);
+        dy = h - dh;
+        const shift = Math.round(w * 0.2);
+        const pos = this.state.camPosition;
+        dx = pos === 'left' ? -shift : pos === 'right' ? shift : 0;
+      }
 
       // Cover crop to match destination region (dw x dh)
       const srcRatio = vw / vh;

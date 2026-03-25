@@ -90,12 +90,12 @@ const Canvas = {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, w, h);
 
-    if (this.bgRemoval) {
+    if (this.bgRemoval && this.currentLayout !== 'face_only') {
       // BG removal mode: full screen background + person silhouette on top
       this.drawBackground(ctx, w, h);
       this.drawPersonSilhouette(ctx, w, h);
     } else {
-      // Normal mode: background + camera in small window
+      // Normal mode (or face_only with bgRemoval): background + camera
       this.drawBackground(ctx, w, h);
       this.drawCamera(ctx, w, h);
     }
@@ -117,13 +117,21 @@ const Canvas = {
     const segResult = Segmentation.processFrame(this.cameraVideo, vw, vh);
     const source = segResult || this.cameraVideo;
 
-    // Bottom half, full width, height controlled by camSize
-    const s = this.camSize;
-    const dw = w; // always full width — no side borders
-    const dh = Math.round(h * 0.5 * s);
-    const dy = h - dh;
-    const shift = Math.round(w * 0.2);
-    let dx = this.camPosition === 'left' ? -shift : this.camPosition === 'right' ? shift : 0;
+    // face_only = full screen, otherwise bottom half with size control
+    let dw, dh, dy, dx;
+    if (this.currentLayout === 'face_only') {
+      dw = w;
+      dh = h;
+      dy = 0;
+      dx = 0;
+    } else {
+      const s = this.camSize;
+      dw = w;
+      dh = Math.round(h * 0.5 * s);
+      dy = h - dh;
+      const shift = Math.round(w * 0.2);
+      dx = this.camPosition === 'left' ? -shift : this.camPosition === 'right' ? shift : 0;
+    }
 
     // Cover crop to match destination region (dw x dh)
     const srcRatio = vw / vh;
