@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "Bash(npm start:*)",
+      "Bash(find /c/dev/Reels-Factory/.claude/agents -type f -name *.md)",
+      "Bash(chmod:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
