@@ -114,7 +114,14 @@ router.post('/generate', async (req, res) => {
     }
 
     // Step 5: Execute generation
-    const env = { ...process.env };
+    // Only pass required env vars to child process — not the entire environment
+    const env = {
+      PATH: process.env.PATH,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      PIAPI_KEY: process.env.PIAPI_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      PYTHONIOENCODING: 'utf-8'
+    };
 
     execFile('python3', [script, ...args], { timeout: 300000, env }, (error, stdout, stderr) => {
       if (error) {
@@ -130,7 +137,9 @@ router.post('/generate', async (req, res) => {
           userError = 'Generation timed out. Try again.';
         }
 
-        return res.status(500).json({ error: userError, details: stderr || error.message });
+        // Log full error server-side only — never expose stderr to client (may contain API keys)
+        console.error('Full error details:', stderr || error.message);
+        return res.status(500).json({ error: userError });
       }
 
       // Step 6: Resize after generation

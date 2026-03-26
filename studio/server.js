@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 3000;
 const ROOT = path.join(__dirname, '..');
 
 // Middleware
-app.use(cors());
+// Restrict CORS to localhost only
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: false
+}));
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 

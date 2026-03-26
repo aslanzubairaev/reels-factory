@@ -37,7 +37,9 @@ router.post('/generate-slide', async (req, res) => {
     let html = fs.readFileSync(templatePath, 'utf-8');
 
     // Inject slide data
-    const dataScript = `<script>window.__SLIDE_DATA__ = ${JSON.stringify(slide_data)};</script>`;
+    // Escape </script> sequences inside JSON to prevent XSS breakout
+    const safeJson = JSON.stringify(slide_data).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+    const dataScript = `<script>window.__SLIDE_DATA__ = ${safeJson};</script>`;
     html = html.replace('<script>', dataScript + '\n<script>');
 
     // Prepare output path
