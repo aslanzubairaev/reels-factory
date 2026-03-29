@@ -7,11 +7,14 @@ import sys
 import base64
 import requests
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def try_gemini(prompt, output_path):
     """Try Google Gemini API for photo generation."""
     api_key = os.getenv('GEMINI_API_KEY')
-    if not api_key or api_key.startswith('your_') or api_key.startswith('AIzaSy') is False:
+    if not api_key or api_key.startswith('your_') or not api_key.startswith('AIzaSy'):
         return False
 
     print("Trying Gemini...")
@@ -20,7 +23,7 @@ def try_gemini(prompt, output_path):
 
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
+            model="gemini-3-pro-image-preview",
             contents=prompt,
             config={"response_modalities": ["IMAGE", "TEXT"]}
         )
