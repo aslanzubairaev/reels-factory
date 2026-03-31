@@ -22,6 +22,15 @@ app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 // Static files — studio frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Validate project name — block path traversal
+app.use('/api', (req, res, next) => {
+  const project = req.body?.project || req.query?.project || req.params?.name;
+  if (project && (/\.\./.test(project) || /[/\\]/.test(project))) {
+    return res.status(400).json({ error: 'Invalid project name' });
+  }
+  next();
+});
+
 // Routes
 app.use('/api', require('./routes/project'));
 app.use('/api', require('./routes/assets'));

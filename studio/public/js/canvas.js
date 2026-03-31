@@ -136,7 +136,8 @@ const Canvas = {
       const s = this.camSize;
       dw = w;
       dh = Math.round(h * 0.5 * s);
-      dy = h - dh;
+      // Instagram safe zone: silhouette above description zone
+      dy = h - dh - Math.round(h * 0.12);
       const shift = Math.round(w * 0.2);
       dx = this.camPosition === 'left' ? -shift : this.camPosition === 'right' ? shift : 0;
     }
@@ -178,52 +179,79 @@ const Canvas = {
 
     try {
       ctx.drawImage(asset.element, 0, 0, w, h);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('drawBackground failed for part', part.part_number, e);
+    }
   },
 
   drawCamera(ctx, w, h) {
     if (!this.cameraVideo || this.cameraVideo.readyState < 2) return;
 
     const layout = this.currentLayout;
-    let dx, dy, dw, dh;
-
-    if (layout === 'face_only') {
-      dx = 0; dy = 0; dw = w; dh = h;
-    } else if (layout === 'full_background') {
-      const s = this.camSize;
-      if (this.cameraShape === 'circle') {
-        const size = Math.round(w * 0.3 * s);
-        dw = size; dh = size;
-      } else {
-        dw = Math.round(w * 0.4 * s);
-        dh = Math.round(dw * 2 / 3);
-      }
-      // Position: left / center / right
-      const margin = Math.round(w * 0.03);
-      if (this.camPosition === 'left') {
-        dx = margin;
-      } else if (this.camPosition === 'right') {
-        dx = w - dw - margin;
-      } else {
-        dx = Math.round((w - dw) / 2);
-      }
-      dy = h - dh - Math.round(h * 0.04);
-    } else {
-      return;
-    }
-
     const vw = this.cameraVideo.videoWidth;
     const vh = this.cameraVideo.videoHeight;
     if (!vw || !vh) return;
 
-    // Calculate source rect with zoom cropping (W-012)
+    if (layout === 'face_only') {
+      // Full screen cover crop
+      const zoom = this.zoom;
+      const cropW = vw / zoom;
+      const cropH = vh / zoom;
+      const sx = (vw - cropW) / 2;
+      const sy = (vh - cropH) / 2;
+      const srcRatio = cropW / cropH;
+      const dstRatio = w / h;
+      let fSx, fSy, fSw, fSh;
+      if (srcRatio > dstRatio) {
+        fSh = cropH; fSw = cropH * dstRatio;
+        fSx = sx + (cropW - fSw) / 2; fSy = sy;
+      } else {
+        fSw = cropW; fSh = cropW / dstRatio;
+        fSx = sx; fSy = sy + (cropH - fSh) / 2;
+      }
+      ctx.save();
+      if (this.mirrorRecording) {
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(this.cameraVideo, fSx, fSy, fSw, fSh, 0, 0, w, h);
+      ctx.restore();
+      return;
+    }
+
+    if (layout !== 'full_background') return;
+
+    // full_background: small camera overlay
+    let dx, dy, dw, dh;
+    const s = this.camSize;
+    if (this.cameraShape === 'circle') {
+      const size = Math.round(w * 0.3 * s);
+      dw = size; dh = size;
+    } else {
+      dw = Math.round(w * 0.4 * s);
+      dh = Math.round(dw * 2 / 3);
+    }
+    // Instagram safe zone margins
+    const marginLeft = Math.round(w * 0.03);
+    const marginRight = Math.round(w * 0.15);
+    const marginBottom = Math.round(h * 0.12);
+    if (this.camPosition === 'left') {
+      dx = marginLeft;
+    } else if (this.camPosition === 'right') {
+      dx = w - dw - marginRight;
+    } else {
+      dx = Math.round((w - dw) / 2);
+    }
+    dy = h - dh - marginBottom;
+
+    // Zoom crop on source
     const zoom = this.zoom;
     const cropW = vw / zoom;
     const cropH = vh / zoom;
     const sx = (vw - cropW) / 2;
     const sy = (vh - cropH) / 2;
 
-    // Aspect-fit the cropped region into destination
+    // Aspect-cover crop into destination
     const srcRatio = cropW / cropH;
     const dstRatio = dw / dh;
     let finalSx, finalSy, finalSw, finalSh;
@@ -240,13 +268,8 @@ const Canvas = {
     }
 
     ctx.save();
+    this.applyShapeClip(ctx, dx, dy, dw, dh);
 
-    // Apply camera shape clip (W-013)
-    if (layout !== 'face_only') {
-      this.applyShapeClip(ctx, dx, dy, dw, dh);
-    }
-
-    // Mirror handling (W-018)
     if (this.mirrorRecording) {
       ctx.translate(dx + dw, dy);
       ctx.scale(-1, 1);
@@ -254,13 +277,9 @@ const Canvas = {
     } else {
       ctx.drawImage(this.cameraVideo, finalSx, finalSy, finalSw, finalSh, dx, dy, dw, dh);
     }
-
     ctx.restore();
 
-    // Draw shape border for non-fullscreen
-    if (layout !== 'face_only') {
-      this.drawShapeBorder(ctx, dx, dy, dw, dh);
-    }
+    this.drawShapeBorder(ctx, dx, dy, dw, dh);
   },
 
   /**

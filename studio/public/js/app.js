@@ -428,6 +428,12 @@ const App = {
     Canvas.setLayout(part.layout);
     if (this.state.screen === 'recording') {
       Canvas.triggerTransition();
+      // Ensure video backgrounds play for canvas rendering
+      const asset = Background.assets[part.part_number];
+      if (asset?.type === 'video') {
+        asset.element.currentTime = 0;
+        asset.element.play().catch(() => {});
+      }
     }
 
     if (this.elements.prevBtn) {
@@ -812,7 +818,8 @@ const App = {
         const size = this.state.camSize;
         dw = w;
         dh = Math.round(h * 0.5 * size);
-        dy = h - dh;
+        // Instagram safe zone: silhouette above description zone
+        dy = h - dh - Math.round(h * 0.12);
         const shift = Math.round(w * 0.2);
         const pos = this.state.camPosition;
         dx = pos === 'left' ? -shift : pos === 'right' ? shift : 0;
@@ -1034,6 +1041,14 @@ const App = {
     Canvas.setMirror(this.state.mirrored);
     Canvas.startRendering();
 
+    // Ensure video backgrounds are playing for canvas rendering
+    const part = this.state.project.parts[this.state.currentPart];
+    const asset = Background.assets[part?.part_number];
+    if (asset?.type === 'video') {
+      asset.element.currentTime = 0;
+      asset.element.play().catch(() => {});
+    }
+
     this.state.recordingDone = false;
     this.updateRecordingUI();
   },
@@ -1114,7 +1129,15 @@ const App = {
       return;
     }
     const next = this.state.project.parts[nextIdx];
-    el.innerHTML = `<span class="next-label">Далее:</span><span class="next-text">${next.text.substring(0, 50)}...</span>`;
+    const label = document.createElement('span');
+    label.className = 'next-label';
+    label.textContent = 'Далее:';
+    const text = document.createElement('span');
+    text.className = 'next-text';
+    text.textContent = next.text.substring(0, 50) + '...';
+    el.innerHTML = '';
+    el.appendChild(label);
+    el.appendChild(text);
   },
 
   async startRecording() {
@@ -1318,8 +1341,22 @@ const App = {
     this.elements.reviewSaveBtn.textContent = 'Сохранение...';
 
     try {
-      const result = await Recorder.saveRecording(this.state.projectName, filename);
-      alert(`Сохранено: ${result.file}`);
+      // Save WebM first
+      const saveResult = await API.saveRecording(this.state.projectName, filename, Recorder.recordedBlob);
+
+      // Convert to MP4 if needed
+      if (!Recorder.isMP4() && saveResult.file) {
+        this.elements.reviewSaveBtn.textContent = 'Конвертация в MP4...';
+        try {
+          const convertResult = await API.convertRecording(this.state.projectName, saveResult.file);
+          alert(`Сохранено: ${convertResult.file}`);
+        } catch (e) {
+          console.error('MP4 conversion failed:', e);
+          alert(`Сохранено как WebM (конвертация в MP4 не удалась: ${e.message})`);
+        }
+      } else {
+        alert(`Сохранено: ${saveResult.file}`);
+      }
       this.switchToRecording();
     } catch (e) {
       alert('Ошибка сохранения: ' + e.message);

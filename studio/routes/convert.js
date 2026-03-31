@@ -32,14 +32,15 @@ router.post('/record/convert', (req, res) => {
   const outputFilename = filename.replace(/\.\w+$/, '.mp4');
   const outputPath = path.join(outputDir, outputFilename);
 
-  execFile('ffmpeg', [
+  const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+  execFile(ffmpegPath, [
     '-y',
     '-i', inputPath,
     '-c:v', 'libx264',
     '-c:a', 'aac',
     '-movflags', '+faststart',
     outputPath
-  ], { timeout: 300000 }, (error, stdout, stderr) => {
+  ], { timeout: 300000, windowsHide: true }, (error, stdout, stderr) => {
     if (error) {
       console.error('FFmpeg error:', stderr || error.message);
       return res.status(500).json({

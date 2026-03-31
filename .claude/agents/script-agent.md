@@ -63,8 +63,21 @@
 ```
 background plate for talking head video, soft even lighting,
 no harsh shadows, no foreground objects, color palette compatible
-with indoor skin tones, 9:16 vertical portrait orientation
+with indoor skin tones, 9:16 vertical portrait orientation,
+all important visual content must be in the upper 70% of the frame
+and left 85% of the frame, keep bottom 30% and right 15% clear
 ```
+
+### Instagram Safe Zones (КРИТИЧНО)
+
+Все фоны ОБЯЗАНЫ учитывать опасные зоны Instagram Reels:
+- **Справа 15%** (162px из 1080) — кнопки лайк, комментарий, репост, отправить
+- **Снизу 30%** (570px из 1920) — зона описания + камера (кружок/прямоугольник с лицом)
+- **Сверху 8%** (150px из 1920) — меню приложения
+
+Важный контент (текст, цифры, иконки) НИКОГДА не должен попадать в эти зоны.
+Для AI-фото/видео: добавляй в промпт указание размещать контент в верхних 70% и левых 85%.
+Для HTML-слайдов: шаблоны уже имеют встроенные отступы (150px сверху, 160px справа, 570px снизу, 60px слева).
 
 ### Layout
 

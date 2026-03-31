@@ -351,18 +351,18 @@ body {
   border-color: var(--accent) !important;
 }
 
-/* Horizontal rectangle — bottom, position via --cam-pos */
+/* Horizontal rectangle — bottom, position via --cam-pos (Instagram safe zone) */
 .camera-window.layout-full_background {
-  bottom: 20px;
+  bottom: 12%;
   top: auto !important;
   width: calc(180px * var(--cam-scale)) !important;
   height: calc(120px * var(--cam-scale)) !important;
   border-radius: 16px;
 }
 
-/* Camera positions */
+/* Camera positions (Instagram safe zone: right side has engagement buttons) */
 .camera-window.cam-pos-left {
-  left: 10px !important;
+  left: 3% !important;
   transform: none !important;
 }
 
@@ -373,7 +373,7 @@ body {
 
 .camera-window.cam-pos-right {
   left: auto !important;
-  right: 10px !important;
+  right: 15% !important;
   transform: none !important;
 }
 

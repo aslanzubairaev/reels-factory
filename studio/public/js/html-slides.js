@@ -65,7 +65,7 @@ const HtmlSlides = {
     if (part.claim) {
       const claimEl = document.createElement('div');
       claimEl.className = 'slide-claim';
-      claimEl.innerHTML = `<strong>Claim:</strong> ${part.claim}`;
+      claimEl.textContent = 'Claim: ' + part.claim;
       container.appendChild(claimEl);
     }
 

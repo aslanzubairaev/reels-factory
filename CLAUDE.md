@@ -43,3 +43,14 @@ background plate for talking head video, soft even lighting,
 no harsh shadows, no foreground objects, color palette compatible
 with indoor skin tones, 9:16 vertical portrait orientation
 ```
+
+## Instagram Safe Zones (CRITICAL)
+
+All visual content MUST respect Instagram Reels safe zones:
+- **Right 15%** (162px of 1080) — engagement buttons (like, comment, share)
+- **Bottom 30%** (570px of 1920) — description zone + camera overlay area
+- **Top 8%** (150px of 1920) — app menu bar
+
+**For AI photo/video backgrounds:** important visual elements (text, objects of interest) must be placed in the upper 70% and left 85% of the frame. The bottom 30% will be covered by the camera overlay.
+
+**For HTML slides:** templates have built-in safe zone padding (150px top, 160px right, 570px bottom, 60px left).
