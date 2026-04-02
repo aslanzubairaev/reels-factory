@@ -1,0 +1,25 @@
+Brand style rules:
+
+- niche: web development / programming / discipline / productivity
+- audience perception: premium, serious, masculine, modern
+- colors: white + orange only (for text, applied by code)
+- background: dark, elegant, subtle tech atmosphere
+- background reference: dark workspace with monitor, code on screen, warm orange particles at bottom
+- face: preserve exactly, no cartoon, no replacement, no stylization
+- typography: bold condensed sans-serif (applied by code, not by image model)
+- typography reference: Bebas Neue / Anton / Montserrat ExtraBold
+- composition: subject center or center-right, text area in lower third
+- lower third: must be dark enough for white/orange text readability
+- lighting: subtle rim light, monitor glow, warm accent — NOT flat, NOT overexposed
+
+AVOID:
+- childish or playful elements
+- gaming thumbnail aesthetic
+- random neon overload
+- fake person or illustrated face
+- cartoon / anime / comic style
+- stock photo feel
+- any text baked into the generated image
+- cluttered or busy backgrounds
+- overly dark images where person is barely visible
+- multiple people or duplicated subjects

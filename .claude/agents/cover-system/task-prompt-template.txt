@@ -1,0 +1,34 @@
+Create an Instagram Reels cover using the fixed Premium Minimal Tech style.
+
+Use the provided real photo of the creator.
+Preserve his face exactly and keep the result photorealistic.
+Do not create a new person.
+Do not stylize the face.
+Do not make the result cartoonish, childish, or synthetic.
+
+Use the provided template and keep brand consistency.
+
+Visual style:
+- premium minimal tech
+- dark elegant developer atmosphere
+- white + orange typography area (lower third, kept clean for code overlay)
+- masculine, clean, serious
+- readable on mobile
+
+Layout:
+- creator is the main subject, large and prominent
+- clean negative space
+- lower 25-30% should be darker/clean for title overlay
+- no text over the face
+- subtle tech atmosphere (code on screen, monitor glow, warm particles)
+
+Title for reference (will be added by code, NOT by you):
+"{{TITLE}}"
+
+Font style reference (for code overlay step, not for you):
+Bebas Neue / Anton / Montserrat ExtraBold
+
+IMPORTANT: Do NOT add any text to the image. Output a clean image only.
+The text will be applied programmatically in a separate step.
+
+The result must look like a premium Instagram cover background for a serious web developer personal brand.

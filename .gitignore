@@ -4,3 +4,6 @@ projects/
 __pycache__/
 *.pyc
 .DS_Store
+.bg-shell/
+history/
+.claude/settings.local.json

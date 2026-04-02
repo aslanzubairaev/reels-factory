@@ -1345,18 +1345,46 @@ const App = {
       const saveResult = await API.saveRecording(this.state.projectName, filename, Recorder.recordedBlob);
 
       // Convert to MP4 if needed
+      let savedFile = saveResult.file;
       if (!Recorder.isMP4() && saveResult.file) {
         this.elements.reviewSaveBtn.textContent = 'Конвертация в MP4...';
         try {
           const convertResult = await API.convertRecording(this.state.projectName, saveResult.file);
-          alert(`Сохранено: ${convertResult.file}`);
+          savedFile = convertResult.file;
         } catch (e) {
           console.error('MP4 conversion failed:', e);
-          alert(`Сохранено как WebM (конвертация в MP4 не удалась: ${e.message})`);
+          alert(`⚠️ Конвертация в MP4 не удалась: ${e.message}\nФайл сохранён как WebM.`);
+          this.switchToRecording();
+          return;
+        }
+      }
+
+      // Track saved parts for per_part mode
+      if (mode === 'per_part' && part) {
+        if (!this.state.savedParts) this.state.savedParts = new Set();
+        this.state.savedParts.add(part.part_number);
+
+        const totalParts = this.state.project.parts.length;
+        const savedCount = this.state.savedParts.size;
+
+        if (savedCount >= totalParts) {
+          // All parts saved — concatenate into recording_full.mp4
+          this.elements.reviewSaveBtn.textContent = 'Склейка частей...';
+          try {
+            const concatResult = await API.concatenateParts(this.state.projectName);
+            alert(`✅ Все ${concatResult.parts} частей склеены в ${concatResult.file}`);
+          } catch (e) {
+            console.error('Concatenation failed:', e);
+            alert(`⚠️ Части сохранены, но склейка не удалась: ${e.message}\nМожно склеить позже.`);
+          }
+          this.state.savedParts = new Set();
+        } else {
+          alert(`✅ Часть ${part.part_number} сохранена (${savedCount}/${totalParts})`);
         }
       } else {
-        alert(`Сохранено: ${saveResult.file}`);
+        alert(`✅ Сохранено: ${savedFile}`);
       }
+
       this.switchToRecording();
     } catch (e) {
       alert('Ошибка сохранения: ' + e.message);

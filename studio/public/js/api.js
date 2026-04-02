@@ -86,5 +86,18 @@ const API = {
     });
     if (!res.ok) throw new Error('Conversion failed');
     return res.json();
+  },
+
+  async concatenateParts(project) {
+    const res = await fetch(`${this.baseUrl}/api/record/concatenate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Concatenation failed');
+    }
+    return res.json();
   }
 };

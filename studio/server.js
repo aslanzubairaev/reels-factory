@@ -56,14 +56,22 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-// Check FFmpeg at startup (W-024)
+// Check FFmpeg at startup
 const { execSync } = require('child_process');
+let ffmpegAvailable = false;
 try {
-  execSync('ffmpeg -version', { stdio: 'pipe' });
+  const ffmpegVersion = execSync('ffmpeg -version', { stdio: 'pipe', windowsHide: true }).toString().split('\n')[0];
+  ffmpegAvailable = true;
+  console.log(`FFmpeg: ${ffmpegVersion}`);
 } catch (e) {
-  console.warn('WARNING: FFmpeg not found. Video conversion will not work.');
-  console.warn('Install: brew install ffmpeg (macOS) | apt install ffmpeg (Ubuntu) | winget install ffmpeg (Windows)');
+  console.warn('⚠️  WARNING: FFmpeg not found in PATH. Video conversion and concatenation will NOT work.');
+  console.warn('   Install: choco install ffmpeg (Windows) | brew install ffmpeg (macOS) | apt install ffmpeg (Ubuntu)');
 }
+
+// Expose FFmpeg status via API
+app.get('/api/status/ffmpeg', (req, res) => {
+  res.json({ available: ffmpegAvailable });
+});
 
 app.listen(PORT, () => {
   console.log(`Reels Factory Studio running at http://localhost:${PORT}`);
