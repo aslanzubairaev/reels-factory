@@ -4,7 +4,12 @@
 Создаёт final_video_subs.mp4.
 """
 
+
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import os
 import subprocess
 
@@ -12,11 +17,17 @@ def render_with_subs(video_path, ass_path, output_path):
     """Рендеринг видео с субтитрами и цветокоррекцией."""
     # Нормализуем путь к ASS для FFmpeg (Windows: экранируем обратные слэши и двоеточия)
     ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
-    
+
+    # Указываем FFmpeg, где искать шрифты для ASS (Montserrat, Bebas Neue).
+    fonts_dir = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "..", "studio", "templates", "fonts"
+    ))
+    fonts_escaped = fonts_dir.replace("\\", "/").replace(":", "\\:")
+
     # Фильтры
     filters = [
         # Субтитры
-        f"ass='{ass_escaped}'",
+        f"ass='{ass_escaped}':fontsdir='{fonts_escaped}'",
         # Цветокоррекция: Teal & Orange look
         "eq=contrast=1.08:brightness=-0.02:saturation=0.82",
         # Виньетка
@@ -102,11 +113,22 @@ def main():
     
     output_dir = os.path.dirname(video_path)
     output_path = os.path.join(output_dir, "final_video_subs.mp4")
-    
+
+    # Если input == output (повторный прогон), пишем во временный файл и переименовываем.
+    same_file = os.path.abspath(video_path) == os.path.abspath(output_path)
+    target_path = output_path + ".tmp.mp4" if same_file else output_path
+
     if no_subs:
-        success = render_without_subs(video_path, output_path)
+        success = render_without_subs(video_path, target_path)
     else:
-        success = render_with_subs(video_path, ass_path, output_path)
+        success = render_with_subs(video_path, ass_path, target_path)
+
+    if success and same_file:
+        try:
+            os.replace(target_path, output_path)
+        except OSError as e:
+            print(f"ОШИБКА: не удалось заменить файл: {e}")
+            success = False
     
     if success:
         size_mb = os.path.getsize(output_path) / (1024 * 1024)

@@ -902,6 +902,119 @@ const App = {
     }
   },
 
+  onScreenStreamChanged() {
+    // Called when ScreenCapture получил или сбросил stream.
+    // Синхронизируем singleton-video и перерисовываем фон если тип screen.
+    if (typeof Background !== 'undefined' && Background.updateScreenStream) {
+      Background.updateScreenStream();
+    }
+    const part = this.state.project?.parts?.[this.state.currentPart];
+    if (!part) return;
+    if (part.background_type === 'screen') {
+      Background.show(part.part_number);
+    }
+  },
+
+  _panSubscribed: false,
+  _ensurePanSubscription() {
+    if (this._panSubscribed || typeof ScreenPan === 'undefined') return;
+    // ScreenPan changes → preview canvas обновляется сам (RAF). Эта подписка
+    // нужна только чтобы hidden/visible state менялся корректно. Пока пусто.
+    this._panSubscribed = true;
+  },
+
+  async changeBackgroundType(newType, newCategory) {
+    const current = this.state.project?.parts?.[this.state.currentPart];
+    if (!current) return;
+
+    const spinner = document.getElementById('generate-spinner');
+    spinner?.classList.remove('hidden');
+
+    try {
+      // Save the type/category first so the server-side normalization runs.
+      await API.updatePart(this.state.projectName, current.part_number, {
+        background_type: newType,
+        background_category: newCategory
+      });
+
+      this.state.project = await API.getProject(this.state.projectName);
+      let newPart = this.state.project.parts[this.state.currentPart];
+
+      if (newPart.background_type === 'html_slide') {
+        const template = newPart.background_category || 'text_slide';
+
+        // Ask Claude to generate slide_data based on the part's text + claim.
+        try {
+          const ai = await API.aiSlideData(this.state.projectName, newPart.part_number, template);
+          if (ai.slide_data) {
+            await API.updatePart(this.state.projectName, newPart.part_number, {
+              background_type: 'html_slide',
+              background_category: template,
+              slide_data: ai.slide_data
+            });
+            this.state.project = await API.getProject(this.state.projectName);
+            newPart = this.state.project.parts[this.state.currentPart];
+          }
+        } catch (e) {
+          console.warn('AI slide-data failed, falling back to defaults:', e.message);
+        }
+
+        // Render the PNG with whatever slide_data is now persisted.
+        try {
+          await HtmlSlides.generate(
+            this.state.projectName,
+            newPart.part_number,
+            template,
+            newPart.slide_data
+          );
+          this.state.project = await API.getProject(this.state.projectName);
+          newPart = this.state.project.parts[this.state.currentPart];
+        } catch (e) {
+          console.warn('Auto slide render failed:', e.message);
+        }
+      }
+
+      const total = this.state.project.parts.length;
+      await Background.preloadAll(this.state.project, this.state.projectName);
+      Teleprompter.show(newPart, total);
+      Background.show(newPart.part_number);
+    } catch (e) {
+      alert('Не удалось сменить тип фона: ' + e.message);
+    } finally {
+      spinner?.classList.add('hidden');
+    }
+  },
+
+  async aiFillSlideData() {
+    const part = this.state.project?.parts?.[this.state.currentPart];
+    if (!part || part.background_type !== 'html_slide') return;
+
+    const spinner = document.getElementById('generate-spinner');
+    spinner?.classList.remove('hidden');
+    try {
+      const template = part.background_category || 'text_slide';
+      const ai = await API.aiSlideData(this.state.projectName, part.part_number, template);
+      if (!ai.slide_data) throw new Error('AI вернул пустые данные');
+
+      await API.updatePart(this.state.projectName, part.part_number, {
+        background_type: 'html_slide',
+        background_category: template,
+        slide_data: ai.slide_data
+      });
+      await HtmlSlides.generate(this.state.projectName, part.part_number, template, ai.slide_data);
+      this.state.project = await API.getProject(this.state.projectName);
+      const total = this.state.project.parts.length;
+      const newPart = this.state.project.parts[this.state.currentPart];
+      await Background.preloadAll(this.state.project, this.state.projectName);
+      Teleprompter.show(newPart, total);
+      Background.show(newPart.part_number);
+    } catch (e) {
+      alert('AI-заполнение не удалось: ' + e.message);
+    } finally {
+      spinner?.classList.add('hidden');
+    }
+  },
+
   async regenerateSlide(slideData) {
     const part = this.state.project.parts[this.state.currentPart];
     if (!part || part.background_type !== 'html_slide') return;
@@ -1142,6 +1255,18 @@ const App = {
 
   async startRecording() {
     if (this.state.isRecording) return;
+
+    // If any part uses live screen capture — make sure we have the stream first.
+    const needsScreen = (this.state.project?.parts || []).some(p => p.background_type === 'screen');
+    if (needsScreen && typeof ScreenCapture !== 'undefined' && !ScreenCapture.isActive()) {
+      try {
+        await ScreenCapture.ensure();
+      } catch (e) {
+        alert('Для захвата экрана нужно выбрать окно. Нажми «Выбрать окно» в панели справа, затем начни запись.');
+        return;
+      }
+    }
+
     await this.doCountdown();
 
     this.state.isRecording = true;
@@ -1150,12 +1275,20 @@ const App = {
     const canvasStream = Canvas.getStream(30);
     const audioTrack = Camera.getAudioTrack();
 
+    // If screen capture is active AND has an audio track — mix it with the mic.
+    let extraAudio = null;
+    if (typeof ScreenCapture !== 'undefined' && ScreenCapture.isActive()) {
+      const scStream = ScreenCapture.getStream();
+      const scAudio = scStream?.getAudioTracks?.()[0];
+      if (scAudio) extraAudio = scAudio;
+    }
+
     Recorder.onStop = () => {
       // Stay in recording screen, show done buttons
       this.updateRecordingUI();
     };
 
-    Recorder.start(canvasStream, audioTrack);
+    Recorder.start(canvasStream, audioTrack, extraAudio);
     this.updateRecordingUI();
     this.startPartTimer();
     this.startAutoscroll();

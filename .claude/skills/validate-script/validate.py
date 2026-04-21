@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Validates a script JSON file against the schema and business rules."""
 
+
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import json
 import sys
 import os
@@ -75,6 +81,13 @@ def validate_script(script_path):
                 errors.append(f"Part {pn}: 'claim' is required when background_type='{bg_type}'")
             if not p.get('visual_proof', '').strip():
                 errors.append(f"Part {pn}: 'visual_proof' is required when background_type='{bg_type}'")
+
+        # Screen capture: live screen, no AI prompt, no slide data
+        if bg_type == 'screen':
+            if p.get('background_prompt', '') != '':
+                errors.append(f"Part {pn}: screen must have empty background_prompt")
+            if p.get('slide_data'):
+                errors.append(f"Part {pn}: screen must not have slide_data")
 
         # W-017: html_slide must not have AI prompt
         if bg_type == 'html_slide':

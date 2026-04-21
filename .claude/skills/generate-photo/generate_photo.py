@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Generate background photo. Tries Gemini first, falls back to DALL-E 3."""
 
+
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import argparse
 import os
 import sys

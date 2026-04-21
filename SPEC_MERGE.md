@@ -27,7 +27,7 @@
 |---|---|
 | `config-agent.md` | Профиль создателя → `config/profile.md` |
 | `trend-agent.md` | Тренды → `projects/{name}/01_trend.md` |
-| `script-agent.md` | Сценарий → `projects/{name}/02_script.json` + `03_hashtags.md` |
+| `script-agent.md` | Сценарий → `projects/{name}/02_script.json` |
 | `visual-agent.md` | Фоны → `projects/{name}/assets/backgrounds/` |
 
 ### Скиллы (`.claude/skills/`)
@@ -294,24 +294,9 @@ recording_full.mp4 (из Studio)
 
 ---
 
-### Агент 11: Отчётник
+### (Удалён) Агент 11: Отчётник
 
-**Файл агента:** `.claude/agents/report-agent.md`
-**Скилл:** не требуется
-
-**Вход:** все файлы из `projects/{name}/output/`
-
-**Выход:**
-- `reel_summary.txt` — краткая выжимка (тема, ЦА, польза, CTA, вирусность)
-- `posting_checklist.md` — пошаговый чеклист публикации
-
-**Логика:**
-1. Проверить что все ключевые файлы созданы
-2. Если чего-то нет — предупреждение (не ошибка)
-3. Финальный красивый отчёт со списком всех файлов и статусами
-4. Показать `cover_preview.png`
-
-**Источник:** Агент 8 из `reels-pipeline/.claude/commands/process.md` (строки 654-769)
+Ранее был Report Agent. Удалён 2026-04-17 по требованию пользователя — отчёты не нужны. Вместо него в конце пост-продакшна работает `cleanup-project` скилл, который оставляет в `output/` только 5 финальных файлов для публикации.
 
 ---
 
@@ -321,31 +306,18 @@ recording_full.mp4 (из Studio)
 projects/{name}/
 ├── 01_trend.md              ← тренд (Trend Agent)
 ├── 02_script.json           ← сценарий (Script Agent)
-├── 03_hashtags.md           ← хештеги (Script Agent)
 ├── assets/
-│   └── backgrounds/         ← фоны слайдов (Visual Agent)
-│       ├── slide_1.png
-│       ├── slide_2.mp4
-│       └── ...
-└── output/                  ← ВСЁ ГОТОВОЕ ЗДЕСЬ
-    ├── recording_full.mp4   ← записанное видео (Studio)
-    ├── recording_part_*.mp4 ← части (если per_part, до склейки)
-    ├── transcript.txt       ← исправленный текст
-    ├── transcript.json      ← текст с таймкодами
-    ├── transcript.srt       ← субтитры SRT (запасной)
-    ├── subtitles.ass        ← субтитры ASS (профессиональные)
-    ├── final_video_subs.mp4 ← видео с субтитрами + цветокоррекция
-    ├── analysis.json        ← анализ контента
+│   ├── backgrounds/         ← AI-фоны (Visual Agent)
+│   └── slides/              ← HTML-слайды (Visual Agent)
+└── output/                  ← финальный пакет после /finish (5 файлов)
+    ├── final_video_subs.mp4 ← видео с субтитрами + цветокоррекцией
+    ├── cover_final.png      ← обложка 1080×1920
     ├── caption.txt          ← описание поста
-    ├── short_caption.txt    ← короткая версия
     ├── first_comment.txt    ← первый комментарий
-    ├── hashtags.txt         ← хештеги
-    ├── cover_text.json      ← текст обложки
-    ├── cover_final.png      ← обложка 1080x1920
-    ├── cover_preview.png    ← preview обложки
-    ├── reel_summary.txt     ← выжимка
-    └── posting_checklist.md ← чеклист публикации
+    └── hashtags.txt         ← хештеги
 ```
+
+**Промежуточные файлы** (transcripts, analysis, cover_candidates, slide versions) удаляются автоматически скиллом `cleanup-project` в конце пост-продакшна.
 
 ---
 

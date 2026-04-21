@@ -10,15 +10,15 @@ const Recorder = {
   mode: 'continuous',  // 'continuous' | 'per_part'
   partRecordings: {},   // { partNumber: Blob }
 
-  start(canvasStream, audioTrack) {
+  start(canvasStream, audioTrack, extraAudioTrack) {
     this.chunks = [];
     this.recordedBlob = null;
+    this._audioCtx = null;
 
-    // Combine canvas video + microphone audio
+    // Combine canvas video + audio (mic [+ optional screen system audio])
     const tracks = [...canvasStream.getVideoTracks()];
-    if (audioTrack) {
-      tracks.push(audioTrack);
-    }
+    const mixedAudio = this._mixAudio(audioTrack, extraAudioTrack);
+    if (mixedAudio) tracks.push(mixedAudio);
     const combinedStream = new MediaStream(tracks);
 
     // Try MP4 first, fallback to WebM
@@ -57,6 +57,36 @@ const Recorder = {
   stop() {
     if (this.mediaRecorder && this.isRecording) {
       this.mediaRecorder.stop();
+    }
+    if (this._audioCtx) {
+      try { this._audioCtx.close(); } catch (_) {}
+      this._audioCtx = null;
+    }
+  },
+
+  /**
+   * Возвращает один audio-track, смиксованный из микрофона + (опц.) системного
+   * звука захваченного окна. Если доп. трека нет — возвращаем исходный mic track.
+   */
+  _mixAudio(micTrack, extraTrack) {
+    if (!extraTrack) return micTrack || null;
+    if (!micTrack) return extraTrack;
+
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this._audioCtx = ctx;
+      const dest = ctx.createMediaStreamDestination();
+
+      const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+      micSource.connect(dest);
+
+      const extraSource = ctx.createMediaStreamSource(new MediaStream([extraTrack]));
+      extraSource.connect(dest);
+
+      return dest.stream.getAudioTracks()[0] || micTrack;
+    } catch (e) {
+      console.warn('Audio mix failed, using mic only:', e);
+      return micTrack;
     }
   },
 

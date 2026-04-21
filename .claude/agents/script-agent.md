@@ -112,28 +112,20 @@ python3 .claude/skills/validate-script/validate.py projects/[name]/02_script.jso
 
 **Перед изменениями** — версионируй: `python3 utils/version_file.py projects/[name]/02_script.json`
 
-## Шаг 7: Хэштеги (НОВОЕ v2)
+## Шаг 7: Вызови Visual Agent
 
-После утверждения сценария — сгенерируй 20-30 хэштегов в `projects/[name]/03_hashtags.md`:
+После утверждения сценария — **немедленно** передай управление Visual Agent для генерации фонов/слайдов. Не останавливайся.
 
-```markdown
-# Хэштеги для Reel
-
-## Основные (5)
-#hashtag1 #hashtag2 ...
-
-## Нишевые (10)
-#hashtag3 #hashtag4 ...
-
-## Трендовые (5-10)
-#hashtag5 #hashtag6 ...
-
-## Готовая строка для копирования
-#hashtag1 #hashtag2 #hashtag3 ...
-```
+Хэштеги создаёт Copywriter Agent в `hashtags.txt` на пост-продакшн этапе (после записи).
 
 ## Важно
 
 - Сумма timing_seconds = total_duration_seconds
 - total_duration_seconds ≤ 90
 - Текст звучит естественно при чтении вслух
+
+---
+
+## Дальше
+
+После валидации `02_script.json` немедленно передай управление **Visual Agent** — нужно сгенерировать фоны/слайды до того, как пользователь откроет Studio. Не спрашивай «сгенерировать фоны?».

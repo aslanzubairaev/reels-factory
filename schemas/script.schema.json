@@ -41,8 +41,8 @@
           },
           "background_type": {
             "type": "string",
-            "enum": ["photo", "video", "html_slide", "none"],
-            "description": "photo = static image; video = short clip; html_slide = rendered HTML template; none = no background (for face_only)"
+            "enum": ["photo", "video", "html_slide", "screen", "none"],
+            "description": "photo = static image; video = short clip; html_slide = rendered HTML template; screen = live screen capture during recording; none = no background (for face_only)"
           },
           "background_prompt": {
             "type": "string",

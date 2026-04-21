@@ -178,6 +178,18 @@ const Canvas = {
     if (!asset || part.layout === 'face_only') return;
 
     try {
+      // Screen capture: apply pan/zoom crop to source before drawing.
+      if (asset.type === 'screen') {
+        const video = Background.getScreenSource ? Background.getScreenSource() : null;
+        if (!video) return;
+        const vw = video.videoWidth || 1920;
+        const vh = video.videoHeight || 1080;
+        const pan = (typeof ScreenPan !== 'undefined')
+          ? ScreenPan.computeCrop(vw, vh, w, h)
+          : { sx: 0, sy: 0, sw: vw, sh: vh };
+        ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, w, h);
+        return;
+      }
       ctx.drawImage(asset.element, 0, 0, w, h);
     } catch (e) {
       console.warn('drawBackground failed for part', part.part_number, e);

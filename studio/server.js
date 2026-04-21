@@ -19,8 +19,13 @@ app.use(cors({
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
-// Static files — studio frontend
-app.use(express.static(path.join(__dirname, 'public')));
+// Static files — studio frontend.
+// Disable HTTP caching so JS/CSS updates are picked up immediately on reload.
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => res.set('Cache-Control', 'no-store, must-revalidate')
+}));
 
 // Validate project name — block path traversal
 app.use('/api', (req, res, next) => {

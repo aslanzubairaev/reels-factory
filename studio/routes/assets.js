@@ -25,6 +25,8 @@ router.get('/assets/:project/custom/:file', (req, res) => {
       return res.status(404).json({ error: 'Custom asset not found' });
     }
 
+    // Assets can be regenerated in place — disable caching to avoid stale previews.
+    res.set('Cache-Control', 'no-store, must-revalidate');
     res.sendFile(resolved);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -52,6 +54,8 @@ router.get('/assets/:project/slides/:file', (req, res) => {
       return res.status(404).json({ error: 'Slide not found' });
     }
 
+    // Assets can be regenerated in place — disable caching to avoid stale previews.
+    res.set('Cache-Control', 'no-store, must-revalidate');
     res.sendFile(resolved);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -79,6 +83,8 @@ router.get('/assets/:project/:file', (req, res) => {
       return res.status(404).json({ error: 'Asset not found' });
     }
 
+    // Assets can be regenerated in place — disable caching to avoid stale previews.
+    res.set('Cache-Control', 'no-store, must-revalidate');
     res.sendFile(resolved);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -1,34 +1,34 @@
-Create an Instagram Reels cover using the fixed Premium Minimal Tech style.
+Create an Instagram Reels cover 1080x1920 using the fixed Premium Minimal Tech style.
 
 Use the provided real photo of the creator.
-Preserve his face exactly and keep the result photorealistic.
+Preserve his face EXACTLY and keep the result photorealistic.
 Do not create a new person.
-Do not stylize the face.
+Do not stylize or smooth the face.
 Do not make the result cartoonish, childish, or synthetic.
 
-Use the provided template and keep brand consistency.
+Use the provided template-cover reference for background consistency.
 
 Visual style:
-- premium minimal tech
-- dark elegant developer atmosphere
-- white + orange typography area (lower third, kept clean for code overlay)
+- premium minimal tech, dark elegant developer atmosphere
 - masculine, clean, serious
 - readable on mobile
+- subtle tech atmosphere: code on screen (far background, out of focus), monitor glow, warm orange particles at the bottom edge
 
-Layout:
-- creator is the main subject, large and prominent
-- clean negative space
-- lower 25-30% should be darker/clean for title overlay
-- no text over the face
-- subtle tech atmosphere (code on screen, monitor glow, warm particles)
+CRITICAL COMPOSITION (must follow):
+- The creator (his face + upper body) occupies the UPPER 55-65% of the frame (y: 0-1150).
+- The LOWER 35-40% of the frame (y: 1150-1920) must be a CLEAN DARK AREA — no face, no objects, no bright highlights there. This is where the title text will be placed by code.
+- The BOTTOM 180 pixels (y: 1740-1920) must be especially quiet and dark — that is the Instagram UI zone (username, audio label).
+- The RIGHT 162 pixels (x: 918-1080) between y: 750-1500 must not contain critical visual detail — that is where Instagram action buttons (like, comment, share) live.
+- No text, no letters, no logos, no watermarks in the image.
+- No stickers, no graphic overlays.
+- Keep negative space clean.
 
 Title for reference (will be added by code, NOT by you):
 "{{TITLE}}"
 
-Font style reference (for code overlay step, not for you):
-Bebas Neue / Anton / Montserrat ExtraBold
+Font style reference (for code overlay step — not for you):
+Montserrat ExtraBold (Cyrillic) / Bebas Neue (Latin).
 
-IMPORTANT: Do NOT add any text to the image. Output a clean image only.
-The text will be applied programmatically in a separate step.
+OUTPUT: a clean image WITHOUT any text overlay. Text will be applied programmatically in a separate step.
 
 The result must look like a premium Instagram cover background for a serious web developer personal brand.

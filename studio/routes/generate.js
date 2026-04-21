@@ -2,13 +2,27 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PROJECTS_DIR = path.join(ROOT, 'projects');
 const SKILLS_DIR = path.join(ROOT, '.claude', 'skills');
 
 const BG_PROMPT_SUFFIX = ', background plate for talking head video, soft even lighting, no harsh shadows, no foreground objects, color palette compatible with indoor skin tones, 9:16 vertical portrait orientation';
+
+// Windows ships `python`, not `python3`. Detect once at module load.
+let PYTHON_BIN = null;
+for (const cmd of ['python3', 'python', 'py']) {
+  try {
+    execFileSync(cmd, ['--version'], { stdio: 'pipe', windowsHide: true });
+    PYTHON_BIN = cmd;
+    break;
+  } catch (_) { /* try next */ }
+}
+if (!PYTHON_BIN) {
+  console.warn('⚠️  No Python interpreter found (tried python3, python, py). Generation endpoints will fail.');
+  PYTHON_BIN = 'python3';
+}
 
 /**
  * Auto-translate prompt to English via Claude API
@@ -123,7 +137,7 @@ router.post('/generate', async (req, res) => {
       PYTHONIOENCODING: 'utf-8'
     };
 
-    execFile('python3', [script, ...args], { timeout: 300000, env }, (error, stdout, stderr) => {
+    execFile(PYTHON_BIN, [script, ...args], { timeout: 300000, env }, (error, stdout, stderr) => {
       if (error) {
         console.error('Generation error:', stderr || error.message);
 
@@ -149,7 +163,7 @@ router.post('/generate', async (req, res) => {
         resizeArgs.push('--duration', String(duration));
       }
 
-      execFile('python3', [resizeScript, ...resizeArgs], { timeout: 120000, env }, (resizeErr) => {
+      execFile(PYTHON_BIN, [resizeScript, ...resizeArgs], { timeout: 120000, env }, (resizeErr) => {
         if (resizeErr) {
           console.error('Resize error:', resizeErr.message);
         }

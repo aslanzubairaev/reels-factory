@@ -75,3 +75,9 @@ python .claude/skills/transcribe/transcribe.py "projects/{name}/output/recording
 ## Зависимости
 - `openai-whisper` (pip install openai-whisper)
 - FFmpeg в PATH
+
+---
+
+## Дальше
+
+Сразу после сохранения транскрипта передай управление **Subtitle Agent** (анализ зоны + решение вшивать/не вшивать субтитры). Не спрашивай.

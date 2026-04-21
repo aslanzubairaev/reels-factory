@@ -16,6 +16,32 @@ const API = {
     return res.json();
   },
 
+  async updatePart(project, partNumber, patch) {
+    const res = await fetch(`${this.baseUrl}/api/project/${encodeURIComponent(project)}/part/${partNumber}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Update failed');
+    }
+    return res.json();
+  },
+
+  async aiSlideData(project, partNumber, template) {
+    const res = await fetch(`${this.baseUrl}/api/ai-slide-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project, part_number: partNumber, template })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'AI slide-data failed');
+    }
+    return res.json();
+  },
+
   getAssetUrl(project, file) {
     return `${this.baseUrl}/api/assets/${encodeURIComponent(project)}/${encodeURIComponent(file)}`;
   },
