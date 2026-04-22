@@ -1,0 +1,50 @@
+{
+  "backends": {
+    "claude": {
+      "label": "Claude Code",
+      "description": "Использует подписку Claude Code от Anthropic",
+      "command": {
+        "win32": "claude.cmd",
+        "darwin": "claude",
+        "linux": "claude"
+      },
+      "args": [],
+      "install_hint": "npm install -g @anthropic-ai/claude-code"
+    },
+    "codex": {
+      "label": "Codex (ChatGPT)",
+      "description": "Использует подписку ChatGPT Plus/Pro от OpenAI",
+      "command": {
+        "win32": "codex.cmd",
+        "darwin": "codex",
+        "linux": "codex"
+      },
+      "args": [],
+      "install_hint": "npm install -g @openai/codex"
+    },
+    "aider": {
+      "label": "Aider",
+      "description": "Универсальный AI-ассистент (поддерживает много моделей)",
+      "command": {
+        "win32": "aider.cmd",
+        "darwin": "aider",
+        "linux": "aider"
+      },
+      "args": [],
+      "install_hint": "pip install aider-chat"
+    },
+    "shell": {
+      "label": "Shell",
+      "description": "Обычный терминал — набирай любую команду сам",
+      "command": {
+        "win32": "cmd.exe",
+        "darwin": "bash",
+        "linux": "bash"
+      },
+      "args": [],
+      "install_hint": null
+    }
+  },
+  "default": "claude",
+  "order": ["claude", "codex", "aider", "shell"]
+}

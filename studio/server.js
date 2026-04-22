@@ -6,6 +6,8 @@ const fs = require('fs');
 // Load .env
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+const { getProjectsDir } = require('./lib/runtime-paths');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ROOT = path.join(__dirname, '..');
@@ -26,6 +28,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
   lastModified: false,
   setHeaders: (res) => res.set('Cache-Control', 'no-store, must-revalidate')
 }));
+
+// xterm.js и addon-файлы — раздаём из node_modules под /vendor/xterm.
+app.use('/vendor/xterm', express.static(path.join(__dirname, '..', 'node_modules', '@xterm')));
 
 // Validate project name — block path traversal
 app.use('/api', (req, res, next) => {
@@ -80,5 +85,5 @@ app.get('/api/status/ffmpeg', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Reels Factory Studio running at http://localhost:${PORT}`);
-  console.log(`Projects directory: ${path.join(ROOT, 'projects')}`);
+  console.log(`Projects directory: ${getProjectsDir()}`);
 });

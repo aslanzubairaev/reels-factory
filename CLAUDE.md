@@ -41,6 +41,20 @@ Multi-agent system for creating Instagram Reels. User talks to Claude Code → C
 9. Copywriter Agent → `caption.txt`, `short_caption.txt`, `first_comment.txt`, `hashtags.txt`, `cover_text.json`
 10. Cover Agent → интерактивно: пользователь выбирает **фото из видео** ИЛИ **из `assets/photos/{work,portrait,lifestyle}`** → Gemini собирает обложку в едином бренд-стиле → текст накладывается кодом (белый + оранжевый `#FF6B00`, шрифт Bebas Neue)
 
+## Встроенный AI-терминал в Studio
+
+В Electron-приложении Studio (`npm run electron` или ярлык «Reels Factory» на рабочем столе) есть плавающая кнопка **«💻 Терминал»** в правом нижнем углу. Горячая клавиша — `Ctrl+\``.
+
+Клик открывает панель снизу с xterm.js и dropdown выбора AI-CLI:
+- **Claude Code** (`claude`) — по умолчанию, использует подписку Anthropic
+- **Codex** (`codex` — OpenAI CLI для ChatGPT Plus/Pro)
+- **Aider** — универсальный ассистент
+- **Shell** — обычный `cmd.exe`/`bash`
+
+Конфиг команд: `electron/ai-backends.json`. Добавить свой CLI — допиши в `backends`.
+
+Выбранный CLI запускается в cwd = корень проекта, автоматически видит `AGENTS.md`, `.claude/agents/*.md`, `.claude/skills/*/`. Смена backend: dropdown → автоматический рестарт сессии. Закрытие панели убивает процесс.
+
 ## Natural Flow Contract (КРИТИЧНО)
 
 Агенты вызываются **автоматически цепочкой** без переспроса пользователя. Всего **3 точки паузы** на весь пайплайн:

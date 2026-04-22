@@ -2,17 +2,72 @@
   "name": "reels-factory",
   "version": "1.0.0",
   "description": "Multi-agent system for creating Instagram Reels",
-  "main": "studio/server.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node studio/server.js",
-    "dev": "node studio/server.js"
+    "dev": "node studio/server.js",
+    "electron": "electron .",
+    "electron:dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
   },
   "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.12",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.21.0",
     "fluent-ffmpeg": "^2.1.3",
     "multer": "^1.4.5-lts.1",
     "puppeteer": "^24.40.0"
+  },
+  "devDependencies": {
+    "electron": "^41.2.2",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.aslan.reels-factory",
+    "productName": "Reels Factory",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "studio/**/*",
+      "schemas/**/*",
+      ".claude/skills/**/*",
+      ".claude/agents/**/*",
+      "assets/**/*",
+      "utils/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDir": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Reels Factory"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "electron/icon.icns"
+    }
   }
 }

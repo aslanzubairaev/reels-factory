@@ -7,8 +7,31 @@
   <link rel="stylesheet" href="/css/studio.css">
   <link rel="stylesheet" href="/css/dark-theme.css" id="theme-dark">
   <link rel="stylesheet" href="/css/light-theme.css" id="theme-light" disabled>
+  <link rel="stylesheet" href="/vendor/xterm/xterm/css/xterm.css">
 </head>
 <body>
+
+  <!-- Плавающая кнопка: открыть терминал (Ctrl+`) -->
+  <button type="button" class="terminal-toggle-btn" data-action="toggle-terminal" title="Открыть терминал (Ctrl+`)">
+    💻 Терминал
+  </button>
+
+  <!-- Выдвижная панель терминала -->
+  <div id="terminal-panel" class="terminal-panel hidden">
+    <div class="terminal-header">
+      <div class="terminal-header-left">
+        <span class="terminal-title">💻 Terminal</span>
+        <select class="terminal-backend-select" title="Выбор AI-CLI"></select>
+        <span class="terminal-status"></span>
+      </div>
+      <div class="terminal-header-right">
+        <button type="button" class="terminal-btn terminal-clear" title="Очистить">🗑</button>
+        <button type="button" class="terminal-btn terminal-restart" title="Перезапустить">↻</button>
+        <button type="button" class="terminal-btn terminal-close" title="Закрыть (Ctrl+`)">✕</button>
+      </div>
+    </div>
+    <div class="terminal-host"></div>
+  </div>
 
   <!-- Экран настроек -->
   <div id="settings-screen">
@@ -280,8 +303,16 @@
   <script src="/js/html-slides.js"></script>
   <script src="/js/screen-capture.js"></script>
   <script src="/js/screen-pan.js"></script>
+  <script src="/js/recording-state.js"></script>
   <script src="/js/recorder.js"></script>
   <script src="/js/app.js"></script>
+
+  <!-- xterm.js + terminal panel -->
+  <script src="/vendor/xterm/xterm/lib/xterm.js"></script>
+  <script src="/vendor/xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="/vendor/xterm/addon-web-links/lib/addon-web-links.js"></script>
+  <script src="/js/terminal-panel.js"></script>
+  <script src="/js/terminal-ui.js"></script>
 
 </body>
 </html>
