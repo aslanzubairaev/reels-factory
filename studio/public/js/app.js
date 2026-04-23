@@ -2187,6 +2187,7 @@ const App = {
     Background.stopAllScreenCaptures();
     this.stopPreviewSegmentation();
     this.stopAudioMeterLoop();
+    Takes.clear();
     Camera.stop();
 
     const recPreviewVideo = document.getElementById('rec-preview-video');
@@ -2258,6 +2259,7 @@ const App = {
     }
 
     this.renderStudioPartRail();
+    this.renderTakesPanel();
     this.updatePreviewRecordingUI();
 
     if (this.state.screen === 'recording') {
@@ -3048,13 +3050,147 @@ const App = {
     if (container) container.scrollTop = 0;
   },
 
-  rerecord() {
+  async rerecord() {
+    // Не выбрасываем дубль в мусор — архивируем в Takes. Пользователь сможет
+    // вернуться к нему, сравнить с новым и выбрать ⭐ лучший.
+    await this.archiveCurrentTake();
     this.discardCurrentTake();
     // Hide preview video if showing
     const prevVideo = document.getElementById('rec-preview-video');
     if (prevVideo) { prevVideo.pause(); prevVideo.classList.add('hidden'); prevVideo.src = ''; }
     const prevBtn = document.getElementById('rec-preview-btn');
     if (prevBtn) prevBtn.textContent = 'Просмотр';
+  },
+
+  // Берёт текущий записанный blob из Recorder и кладёт его в Takes для
+  // текущего этапа. Безопасно вызывать, если записи нет — просто no-op.
+  async archiveCurrentTake() {
+    if (!Recorder.recordedBlob) return;
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    if (!partNumber) return;
+    const durationMs = this.state.recordingElapsedMs || 0;
+    try {
+      await Takes.add(partNumber, Recorder.recordedBlob, durationMs);
+      this.renderTakesPanel();
+    } catch (e) {
+      console.warn('Не удалось сохранить дубль в менеджер:', e);
+    }
+  },
+
+  // Перерисовывает панель дублей для текущего этапа. Скрывает панель, если
+  // дублей нет.
+  renderTakesPanel() {
+    const panel = document.getElementById('takes-panel');
+    const listEl = document.getElementById('takes-list');
+    const hintEl = document.getElementById('takes-panel-hint');
+    if (!panel || !listEl) return;
+
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    if (!partNumber) {
+      panel.classList.add('hidden');
+      return;
+    }
+
+    const takes = Takes.list(partNumber);
+    if (takes.length === 0) {
+      panel.classList.add('hidden');
+      listEl.innerHTML = '';
+      return;
+    }
+
+    panel.classList.remove('hidden');
+    const bestCount = takes.filter(t => t.isBest).length;
+    if (hintEl) {
+      hintEl.textContent = bestCount
+        ? '⭐ Выбран лучший дубль'
+        : `${takes.length} ${this._pluralizeTakes(takes.length)} — отметьте лучший`;
+    }
+
+    listEl.innerHTML = '';
+    takes.forEach((take, idx) => {
+      const card = document.createElement('div');
+      card.className = 'take-card' + (take.isBest ? ' is-best' : '');
+      card.dataset.takeId = take.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'take-card-thumb';
+      if (take.thumbnail) thumb.style.backgroundImage = `url("${take.thumbnail}")`;
+      const num = document.createElement('span');
+      num.className = 'take-card-num';
+      num.textContent = `#${idx + 1}`;
+      thumb.appendChild(num);
+      card.appendChild(thumb);
+
+      const info = document.createElement('div');
+      info.className = 'take-card-info';
+      const title = document.createElement('div');
+      title.className = 'take-card-title';
+      title.textContent = `Дубль ${idx + 1}`;
+      if (take.isBest) {
+        const star = document.createElement('span');
+        star.textContent = '⭐';
+        title.appendChild(star);
+      }
+      info.appendChild(title);
+      const meta = document.createElement('div');
+      meta.className = 'take-card-meta';
+      meta.textContent = Takes.formatDuration(take.durationMs);
+      info.appendChild(meta);
+      card.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'take-card-actions';
+
+      const bestBtn = document.createElement('button');
+      bestBtn.type = 'button';
+      bestBtn.className = 'take-card-btn' + (take.isBest ? ' is-best-on' : '');
+      bestBtn.title = take.isBest ? 'Снять отметку «лучший»' : 'Отметить как лучший';
+      bestBtn.textContent = '⭐';
+      bestBtn.addEventListener('click', () => {
+        Takes.toggleBest(partNumber, take.id);
+        this.renderTakesPanel();
+      });
+      actions.appendChild(bestBtn);
+
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'take-card-btn';
+      playBtn.title = 'Просмотр дубля';
+      playBtn.textContent = '▶';
+      playBtn.addEventListener('click', () => this.playTakePreview(take));
+      actions.appendChild(playBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'take-card-btn is-danger';
+      delBtn.title = 'Удалить дубль';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', () => {
+        if (!confirm('Удалить этот дубль?')) return;
+        Takes.remove(partNumber, take.id);
+        this.renderTakesPanel();
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+      listEl.appendChild(card);
+    });
+  },
+
+  _pluralizeTakes(n) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'дубль';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дубля';
+    return 'дублей';
+  },
+
+  playTakePreview(take) {
+    const prevVideo = document.getElementById('rec-preview-video');
+    if (!prevVideo) return;
+    prevVideo.src = take.objectUrl;
+    prevVideo.classList.remove('hidden');
+    prevVideo.play().catch(e => console.warn('Ошибка воспроизведения дубля:', e));
   },
 
   async doCountdown() {
@@ -3256,7 +3392,14 @@ const App = {
   },
 
   async saveRecording() {
-    if (!Recorder.hasCapturedData()) {
+    // Перед сохранением проверяем: есть ли помеченный «лучший» дубль?
+    // Если да — используем именно его, даже если сейчас в Recorder лежит
+    // более свежая запись. Это ключевой смысл Take Manager.
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    const bestTake = partNumber ? Takes.getBestOrLatest(partNumber) : null;
+    const hasBestMarked = bestTake && bestTake.isBest;
+
+    if (!Recorder.hasCapturedData() && !bestTake) {
       return alert('Сначала запишите хотя бы один фрагмент.');
     }
 
@@ -3275,7 +3418,25 @@ const App = {
         await this.stopRecording();
       }
       this.pauseRecordingElapsed();
-      const result = await Recorder.saveRecording(this.state.projectName);
+
+      let result;
+      if (hasBestMarked) {
+        // Отправляем именно best-дубль через тот же API, что Recorder использует
+        result = await API.saveRecording(this.state.projectName, '', bestTake.blob);
+        if (result.file) {
+          // Если WebM — конвертируем в MP4 как Recorder.saveRecording
+          const blobType = bestTake.blob.type || '';
+          if (!blobType.startsWith('video/mp4')) {
+            try {
+              result = await API.convertRecording(this.state.projectName, result.file);
+            } catch (e) {
+              console.warn('Конвертация best-дубля не удалась, оставляю WebM:', e);
+            }
+          }
+        }
+      } else {
+        result = await Recorder.saveRecording(this.state.projectName);
+      }
       this.state.recordingStatusMessage = `Сохранено: ${result.file}`;
 
       // Обновляем file-browser чтобы записанное видео сразу появилось в списке

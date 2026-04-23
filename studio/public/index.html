@@ -435,6 +435,17 @@
           </div>
         </div>
 
+        <!-- Панель дублей текущего этапа. Скрыта пока нет записанных попыток.
+             Каждая карточка — это один дубль: превью-кадр, длительность,
+             кнопки ⭐Best / ▶Просмотр / 🗑Удалить. -->
+        <div id="takes-panel" class="panel-section takes-panel hidden">
+          <div class="takes-panel-head">
+            <h3>🎬 Дубли этапа</h3>
+            <span class="takes-panel-hint" id="takes-panel-hint">Снимите первый дубль</span>
+          </div>
+          <div id="takes-list" class="takes-list"></div>
+        </div>
+
         <div id="rec-teleprompter-side" class="panel-section rec-teleprompter-panel">
           <div class="teleprompter-panel-head">
             <h3>📖 Телепромптер</h3>
@@ -526,6 +537,7 @@
   <script src="/js/canvas.js"></script>
   <script src="/js/html-slides.js"></script>
   <script src="/js/recorder.js"></script>
+  <script src="/js/takes.js"></script>
   <script src="/js/recording-state.js"></script>
   <script src="/js/screen-capture.js"></script>
   <script src="/js/screen-pan.js"></script>
