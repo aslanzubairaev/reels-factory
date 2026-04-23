@@ -20,7 +20,6 @@ const App = {
     builderMeta: null,
     builderSelectedPartIndex: 0,
     builderDirty: false,
-    builderValidationOutput: '',
     builderSlideDrafts: {},
     builderDeletedPartUndo: null,
     studioPreferences: null,
@@ -96,8 +95,8 @@ const App = {
       builderProjectMeta: document.getElementById('builder-project-meta'),
       builderStatus: document.getElementById('builder-status'),
       builderAddPartBtn: document.getElementById('builder-add-part-btn'),
-      builderSaveBtn: document.getElementById('builder-save-btn'),
-      builderValidateBtn: document.getElementById('builder-validate-btn'),
+      builderSaveIndicator: document.getElementById('builder-save-indicator'),
+      builderSaveIndicatorText: document.querySelector('#builder-save-indicator .builder-save-text'),
       builderPartsList: document.getElementById('builder-parts-list'),
       builderEditorEmpty: document.getElementById('builder-editor-empty'),
       builderEditorFields: document.getElementById('builder-editor-fields'),
@@ -125,7 +124,6 @@ const App = {
       builderSlideCategorySelect: document.getElementById('builder-slide-category-select'),
       builderSlideDataGroup: document.getElementById('builder-slide-data-group'),
       builderSlideDataInput: document.getElementById('builder-slide-data-input'),
-      builderValidationOutput: document.getElementById('builder-validation-output'),
       cameraSelect: document.getElementById('camera-select'),
       micSelect: document.getElementById('mic-select'),
       qualitySelect: document.getElementById('quality-select'),
@@ -253,8 +251,6 @@ const App = {
     this.elements.backToProjectsBtn?.addEventListener('click', () => this.returnToProjectPicker());
     this.elements.projectSelect?.addEventListener('change', () => this.handleProjectSelectionChange());
     this.elements.builderAddPartBtn?.addEventListener('click', () => this.addBuilderPart());
-    this.elements.builderSaveBtn?.addEventListener('click', () => this.saveBuilderProject());
-    this.elements.builderValidateBtn?.addEventListener('click', () => this.validateBuilderProject());
     this.elements.builderDeletePartBtn?.addEventListener('click', () => this.deleteSelectedBuilderPart());
     this.elements.builderTextInput?.addEventListener('input', (e) => this.updateSelectedBuilderPart('text', e.target.value));
     this.elements.builderLayoutSelect?.addEventListener('change', (e) => this.updateSelectedBuilderPart('layout', e.target.value));
@@ -557,7 +553,6 @@ const App = {
     this.state.builderMeta = null;
     this.state.builderSelectedPartIndex = 0;
     this.state.builderDirty = false;
-    this.state.builderValidationOutput = '';
     this.state.builderSlideDrafts = {};
     this.state.builderDeletedPartUndo = null;
     this.renderBuilder();
@@ -635,7 +630,6 @@ const App = {
       this.state.builderMeta = meta;
       this.state.builderSelectedPartIndex = 0;
       this.state.builderDirty = false;
-      this.state.builderValidationOutput = '';
       this.state.builderSlideDrafts = {};
       this.state.builderDeletedPartUndo = null;
 
@@ -680,13 +674,8 @@ const App = {
     const project = this.state.builderProject;
     const titleEl = this.elements.builderProjectTitle;
     const metaEl = this.elements.builderProjectMeta;
-    const validationOutput = this.elements.builderValidationOutput;
 
     if (!project) {
-      if (validationOutput) {
-        validationOutput.textContent = '';
-        validationOutput.classList.add('hidden');
-      }
       this.updateBuilderButtons();
       return;
     }
@@ -697,11 +686,6 @@ const App = {
       const statusLabel = this.getBuilderStatusLabel(this.state.builderMeta?.status || 'draft');
       const dirtyLabel = this.state.builderDirty ? ' • несохраненные изменения' : '';
       metaEl.textContent = `${project.parts.length} этапов • ${modeLabel} • ${statusLabel}${dirtyLabel}`;
-    }
-
-    if (validationOutput) {
-      validationOutput.textContent = this.state.builderValidationOutput || '';
-      validationOutput.classList.toggle('hidden', !this.state.builderValidationOutput);
     }
 
     this.updateBuilderButtons();
@@ -931,8 +915,6 @@ const App = {
   updateBuilderButtons() {
     const hasProject = !!this.state.builderProject;
     if (this.elements.builderAddPartBtn) this.elements.builderAddPartBtn.disabled = !hasProject;
-    if (this.elements.builderSaveBtn) this.elements.builderSaveBtn.disabled = !hasProject;
-    if (this.elements.builderValidateBtn) this.elements.builderValidateBtn.disabled = !hasProject;
   },
 
   getBuilderStatusLabel(status) {
@@ -951,6 +933,29 @@ const App = {
     el.className = 'builder-status';
     if (tone) {
       el.classList.add(`is-${tone}`);
+    }
+    this.reflectSaveIndicator(message, tone);
+  },
+
+  // Обновляет маленький индикатор «Сохранено ✓» в заголовке редактора.
+  // state: idle | saving | saved | error
+  setSaveIndicator(state, label) {
+    const el = this.elements.builderSaveIndicator;
+    const textEl = this.elements.builderSaveIndicatorText;
+    if (!el) return;
+    el.dataset.state = state;
+    if (textEl && label) textEl.textContent = label;
+  },
+
+  // Маппим текстовые статусы сохранения на состояния индикатора.
+  reflectSaveIndicator(message, tone) {
+    const msg = (message || '').toLowerCase();
+    if (tone === 'warning' && msg.includes('сохранени')) {
+      this.setSaveIndicator('saving', 'Сохраняю...');
+    } else if (tone === 'success' && (msg.includes('сохран') || msg.includes('загруж'))) {
+      this.setSaveIndicator('saved', 'Сохранено');
+    } else if (tone === 'error' && msg.includes('сохран')) {
+      this.setSaveIndicator('error', 'Ошибка');
     }
   },
 
@@ -1049,7 +1054,6 @@ const App = {
   markBuilderDirty(message = 'Есть несохраненные изменения', options = {}) {
     const { autosave = true } = options;
     this.state.builderDirty = true;
-    this.state.builderValidationOutput = '';
     const statusMessage = message
       ? `${message}. Черновик сохранится автоматически.`
       : 'Черновик сохранится автоматически.';
@@ -1383,9 +1387,8 @@ const App = {
 
     if (autosave) {
       this.setBuilderStatus('Сохранение черновика...', 'warning');
-    } else if (this.elements.builderSaveBtn) {
-      this.elements.builderSaveBtn.disabled = true;
-      this.elements.builderSaveBtn.textContent = 'Сохранение...';
+    } else {
+      this.setBuilderStatus('Сохранение...', 'warning');
     }
 
     this.builderSavePromise = (async () => {
@@ -1407,7 +1410,6 @@ const App = {
       this.state.builderProjectName = refreshedProject.name || builderProjectName;
       this.state.builderMeta = refreshedMeta;
       this.state.builderDirty = false;
-      this.state.builderValidationOutput = '';
       this.state.builderSlideDrafts = {};
       this.state.builderDeletedPartUndo = null;
 
@@ -1435,10 +1437,6 @@ const App = {
       })
       .finally(() => {
         this.builderSavePromise = null;
-        if (this.elements.builderSaveBtn) {
-          this.elements.builderSaveBtn.disabled = false;
-          this.elements.builderSaveBtn.textContent = 'Сохранить сейчас';
-        }
       });
 
     return this.builderSavePromise;
@@ -1505,41 +1503,6 @@ const App = {
     if (this.state.isRecording) {
       this.stopAutoscroll();
       this.startAutoscroll();
-    }
-  },
-
-  async validateBuilderProject() {
-    const projectName = this.state.builderProjectName;
-    if (!projectName) return;
-
-    const saved = await this.saveBuilderProject({ quiet: true });
-    if (!saved) return;
-
-    if (this.elements.builderValidateBtn) {
-      this.elements.builderValidateBtn.disabled = true;
-      this.elements.builderValidateBtn.textContent = 'Проверка...';
-    }
-
-    try {
-      const result = await API.validateProject(projectName);
-      this.state.builderMeta = result.meta;
-      this.state.builderValidationOutput = result.output || '';
-      await this.loadProjects(projectName);
-      this.renderBuilder();
-
-      if (result.valid) {
-        this.setBuilderStatus('Валидация пройдена. Проект готов к записи.', 'success');
-      } else {
-        this.setBuilderStatus('Валидация не пройдена. Исправьте ошибки ниже.', 'error');
-      }
-    } catch (e) {
-      this.setBuilderStatus(`Ошибка валидации: ${e.message}`, 'error');
-      alert('Ошибка валидации: ' + e.message);
-    } finally {
-      if (this.elements.builderValidateBtn) {
-        this.elements.builderValidateBtn.disabled = false;
-        this.elements.builderValidateBtn.textContent = 'Проверить';
-      }
     }
   },
 

@@ -102,13 +102,16 @@
 
             <section class="builder-editor-column">
               <div class="builder-header">
-                <div>
+                <div class="builder-header-left">
                   <div class="builder-column-kicker">Редактор</div>
                   <div id="builder-selected-part-label" class="builder-selected-part-label">Этап 1</div>
                 </div>
                 <div class="builder-actions">
-                  <button id="builder-save-btn" class="btn btn-secondary btn-sm hidden" type="button">Сохранить сейчас</button>
-                  <button id="builder-validate-btn" class="btn btn-secondary btn-sm hidden" type="button">Проверить</button>
+                  <!-- Индикатор автосохранения: меняется через setBuilderStatus -->
+                  <span id="builder-save-indicator" class="builder-save-indicator" data-state="idle" aria-live="polite">
+                    <span class="builder-save-dot"></span>
+                    <span class="builder-save-text">Сохранено</span>
+                  </span>
                   <button id="builder-delete-part-btn" class="btn btn-danger btn-sm" type="button">Удалить этап</button>
                 </div>
               </div>
@@ -157,7 +160,6 @@
                 </div>
               </div>
 
-              <pre id="builder-validation-output" class="builder-validation-output hidden"></pre>
             </section>
           </div>
 
