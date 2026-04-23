@@ -68,8 +68,37 @@ body::after {
   display: none !important;
 }
 
-.studio-compat-control {
-  display: none !important;
+/* Плавающий спиннер: показывается поверх всего при загрузке/генерации фона.
+   Виден посередине экрана, с подписью. */
+.generate-spinner-floating {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: color-mix(in srgb, var(--bg-contrast) 70%, transparent);
+  backdrop-filter: blur(6px);
+  pointer-events: all;
+}
+.generate-spinner-ring {
+  width: 54px;
+  height: 54px;
+  border: 4px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: generate-spin 0.9s linear infinite;
+}
+.generate-spinner-label {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@keyframes generate-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* === Settings Screen === */
@@ -1769,14 +1798,6 @@ body::after {
   margin-top: 12px;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.generate-spinner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 
 .spinner-small {

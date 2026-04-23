@@ -362,18 +362,11 @@
     </div>
   </div>
 
-  <input type="file" id="upload-bg-input" accept="image/*,video/*" class="hidden studio-compat-control">
-  <button id="upload-bg-btn" class="hidden studio-compat-control" type="button">Загрузить медиа</button>
-  <button id="connect-screen-capture-btn" class="hidden studio-compat-control" type="button">Подключить окно</button>
-  <button id="remove-custom-btn" class="hidden studio-compat-control" type="button">Убрать медиа</button>
-  <div id="generate-spinner" class="generate-spinner hidden studio-compat-control"></div>
-  <div id="part-info" class="hidden studio-compat-control"></div>
-  <span id="layout-badge" class="hidden studio-compat-control"></span>
-  <span id="type-badge" class="hidden studio-compat-control"></span>
-  <div id="bg-panel-title" class="hidden studio-compat-control"></div>
-  <div id="bg-panel-note" class="hidden studio-compat-control"></div>
-  <button id="prev-btn" class="hidden studio-compat-control" type="button">Назад</button>
-  <button id="next-btn" class="hidden studio-compat-control" type="button">Вперёд</button>
+  <!-- Floating-спиннер: показывается поверх всего при генерации/загрузке фона -->
+  <div id="generate-spinner" class="generate-spinner-floating hidden">
+    <div class="generate-spinner-ring"></div>
+    <div class="generate-spinner-label">Обработка...</div>
+  </div>
 
   <!-- Режим Recording -->
   <div id="recording-screen" class="hidden">

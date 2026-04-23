@@ -139,8 +139,6 @@ const App = {
       cameraVideo: document.getElementById('camera-video'),
       cameraResize: document.getElementById('camera-resize-handle'),
 
-      partInfo: document.getElementById('part-info'),
-      layoutBadge: document.getElementById('layout-badge'),
       teleprompterText: document.getElementById('teleprompter-text'),
       editScriptBtn: document.getElementById('edit-script-btn'),
       teleprompterEditor: document.getElementById('teleprompter-editor'),
@@ -151,12 +149,8 @@ const App = {
       teleprompterEditHint: document.getElementById('teleprompter-edit-hint'),
       timingInfo: document.getElementById('timing-info'),
       bgPrompt: document.getElementById('bg-prompt'),
-      bgPanelTitle: document.getElementById('bg-panel-title'),
-      bgPanelNote: document.getElementById('bg-panel-note'),
       previewPartRail: document.getElementById('preview-part-rail'),
       exitStudioBtn: document.getElementById('exit-studio-btn'),
-      prevBtn: document.getElementById('prev-btn'),
-      nextBtn: document.getElementById('next-btn'),
       recordBtn: document.getElementById('start-recording-btn'),
       previewRecordingDot: document.getElementById('preview-recording-dot'),
       previewRecordingStatus: document.getElementById('preview-recording-status'),
@@ -186,8 +180,6 @@ const App = {
       recStartBtn: document.getElementById('rec-start-btn'),
       recStopBtn: document.getElementById('rec-stop-btn'),
       recRerecordBtn: document.getElementById('rec-rerecord-btn'),
-      recPrevBtn: document.getElementById('rec-prev-btn'),
-      recNextBtn: document.getElementById('rec-next-btn'),
       recBackBtn: document.getElementById('rec-back-btn'),
       recIndicator: document.getElementById('rec-indicator'),
 
@@ -274,8 +266,6 @@ const App = {
     this.elements.builderUseScreenCaptureBtn?.addEventListener('click', () => this.useBuilderScreenCapture());
     this.elements.builderConnectScreenCaptureBtn?.addEventListener('click', () => this.connectBuilderScreenCapture());
     this.elements.builderRemoveUploadBtn?.addEventListener('click', () => this.removeBuilderBackground());
-    this.elements.prevBtn?.addEventListener('click', () => this.prevSlide());
-    this.elements.nextBtn?.addEventListener('click', () => this.nextSlide());
     this.elements.exitStudioBtn?.addEventListener('click', () => this.exitStudioToSettings());
     this.elements.recordBtn?.addEventListener('click', () => this.togglePreviewRecording());
     this.elements.previewConnectScreenBtn?.addEventListener('click', () => this.connectMissingScreenCapture());
@@ -293,17 +283,6 @@ const App = {
     this.elements.recTeleprompterEditorInput?.addEventListener('keydown', (e) => this.handleScriptEditorKeydown(e));
     this.elements.recTeleprompterEditorSave?.addEventListener('click', () => this.saveInlineScriptEdit());
     this.elements.recTeleprompterEditorCancel?.addEventListener('click', () => this.closeScriptEditor());
-
-    // Upload custom background
-    document.getElementById('upload-bg-btn')?.addEventListener('click', () => {
-      document.getElementById('upload-bg-input')?.click();
-    });
-    document.getElementById('upload-bg-input')?.addEventListener('change', (e) => {
-      if (e.target.files[0]) this.uploadCustomBackground(e.target.files[0]);
-      e.target.value = '';
-    });
-    document.getElementById('remove-custom-btn')?.addEventListener('click', () => this.removeCustomBackground());
-    document.getElementById('connect-screen-capture-btn')?.addEventListener('click', () => this.connectCurrentScreenCapture());
 
     // Drag-and-drop on phone frame
     const phoneFrame = document.getElementById('phone-frame');
@@ -382,8 +361,6 @@ const App = {
     this.elements.recStartBtn?.addEventListener('click', () => this.startRecording());
     this.elements.recStopBtn?.addEventListener('click', () => this.stopRecording());
     this.elements.recRerecordBtn?.addEventListener('click', () => this.rerecord());
-    this.elements.recPrevBtn?.addEventListener('click', () => this.prevSlide());
-    this.elements.recNextBtn?.addEventListener('click', () => this.nextSlide());
     this.elements.recBackBtn?.addEventListener('click', () => this.switchToPreview());
     document.getElementById('rec-save-direct-btn')?.addEventListener('click', () => this.saveRecording());
     document.getElementById('rec-preview-btn')?.addEventListener('click', () => this.toggleRecPreview());
@@ -1217,7 +1194,6 @@ const App = {
         label: part.screen_capture_label || 'Окно экрана'
       });
       this.showCurrentSlide();
-      this.updateCustomBtn();
       this.updatePreviewRecordingUI();
     } catch (error) {
       alert('Не удалось подключить окно: ' + error.message);
@@ -1811,14 +1787,6 @@ const App = {
       await this.loadStudioPreferences(projectName);
 
       Teleprompter.textElement = this.elements.teleprompterText;
-      Teleprompter.partInfoElement = null;
-      Teleprompter.layoutBadgeElement = null;
-      Teleprompter.timingBadgeElement = null;
-      Teleprompter.typeBadgeElement = null;
-      Teleprompter.promptElement = null;
-      Teleprompter.promptSection = null;
-      Teleprompter.titleElement = null;
-      Teleprompter.noteElement = null;
 
       // Apply persisted camera settings before the first frame renders.
       this.preparePreviewRecordingCanvas();
@@ -2213,9 +2181,6 @@ const App = {
       Background.show(null);
     }
 
-    // Update custom background button visibility
-    this.updateCustomBtn();
-
     // Apply transition animation in Preview
     this.playTransition();
 
@@ -2238,11 +2203,6 @@ const App = {
       Canvas.triggerTransition();
     } else if (this.state.screen === 'recording') {
       Canvas.triggerTransition();
-    }
-
-    if (this.elements.prevBtn) {
-      this.elements.prevBtn.disabled = this.state.currentPart === 0;
-      this.elements.nextBtn.disabled = this.state.currentPart === this.state.project.parts.length - 1;
     }
 
     this.renderStudioPartRail();
@@ -2788,7 +2748,6 @@ const App = {
         Background.stopScreenCapture(part.part_number);
         await Background.preloadAll(this.state.project, this.state.projectName, { bust: true });
         Background.show(part.part_number);
-        this.updateCustomBtn();
         this.showCurrentSlide();
       }
     } catch (e) {
@@ -2811,26 +2770,6 @@ const App = {
       this.showCurrentSlide();
     } catch (e) {
       alert('Ошибка удаления: ' + e.message);
-    }
-  },
-
-  updateCustomBtn() {
-    const part = this.state.project?.parts[this.state.currentPart];
-    const removeBtn = document.getElementById('remove-custom-btn');
-    const connectScreenBtn = document.getElementById('connect-screen-capture-btn');
-    if (removeBtn) {
-      if (part?.custom_file) {
-        removeBtn.classList.remove('hidden');
-      } else {
-        removeBtn.classList.add('hidden');
-      }
-    }
-    if (connectScreenBtn) {
-      const isScreenCapture = part?.layout !== 'face_only' && part?.background_type === 'screen_capture';
-      connectScreenBtn.classList.toggle('hidden', !isScreenCapture);
-      connectScreenBtn.textContent = Background.isScreenCaptureConnected(part?.part_number)
-        ? 'Перевыбрать окно'
-        : 'Подключить окно';
     }
   },
 
