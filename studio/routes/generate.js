@@ -3,10 +3,15 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { execFile, execFileSync } = require('child_process');
+const { assertSafeProjectName } = require('../lib/projects');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PROJECTS_DIR = path.join(ROOT, 'projects');
 const SKILLS_DIR = path.join(ROOT, '.claude', 'skills');
+
+const MAX_PROMPT_LENGTH = 2000;
+const MAX_DURATION_SECONDS = 60;
+const VALID_VIDEO_SERVICES = new Set(['seedance', 'veo', undefined, null, '']);
 
 const BG_PROMPT_SUFFIX = ', background plate for talking head video, soft even lighting, no harsh shadows, no foreground objects, color palette compatible with indoor skin tones, 9:16 vertical portrait orientation';
 
@@ -86,6 +91,30 @@ router.post('/generate', async (req, res) => {
     return res.status(400).json({ error: 'type must be "photo" or "video"' });
   }
 
+  // Валидация входных данных — защита от injection/path traversal.
+  let safeProject;
+  try {
+    safeProject = assertSafeProjectName(project);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const safePartNumber = Number(part_number);
+  if (!Number.isInteger(safePartNumber) || safePartNumber < 1 || safePartNumber > 99) {
+    return res.status(400).json({ error: 'part_number must be an integer between 1 and 99' });
+  }
+  if (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
+    return res.status(400).json({ error: `prompt must be a string shorter than ${MAX_PROMPT_LENGTH} chars` });
+  }
+  if (duration !== undefined && duration !== null && duration !== '') {
+    const d = Number(duration);
+    if (!Number.isFinite(d) || d < 1 || d > MAX_DURATION_SECONDS) {
+      return res.status(400).json({ error: `duration must be between 1 and ${MAX_DURATION_SECONDS}` });
+    }
+  }
+  if (!VALID_VIDEO_SERVICES.has(video_service)) {
+    return res.status(400).json({ error: 'video_service must be "seedance" or "veo"' });
+  }
+
   try {
     // Step 1: Auto-translate prompt to English
     let englishPrompt = await translatePrompt(prompt);
@@ -96,20 +125,20 @@ router.post('/generate', async (req, res) => {
     }
 
     // Step 3: Prepare paths
-    const bgDir = path.join(PROJECTS_DIR, project, 'assets', 'backgrounds');
+    const bgDir = path.join(PROJECTS_DIR, safeProject, 'assets', 'backgrounds');
     fs.mkdirSync(bgDir, { recursive: true });
 
     const ext = type === 'photo' ? 'jpg' : 'mp4';
-    const filename = `part_${part_number}_bg.${ext}`;
+    const filename = `part_${safePartNumber}_bg.${ext}`;
     const outputPath = path.join(bgDir, filename);
 
     // Version existing file before overwriting
     if (fs.existsSync(outputPath)) {
       let version = 1;
-      while (fs.existsSync(path.join(bgDir, `part_${part_number}_bg_v${version}.${ext}`))) {
+      while (fs.existsSync(path.join(bgDir, `part_${safePartNumber}_bg_v${version}.${ext}`))) {
         version++;
       }
-      fs.renameSync(outputPath, path.join(bgDir, `part_${part_number}_bg_v${version}.${ext}`));
+      fs.renameSync(outputPath, path.join(bgDir, `part_${safePartNumber}_bg_v${version}.${ext}`));
     }
 
     // Step 4: Choose script
@@ -171,7 +200,7 @@ router.post('/generate', async (req, res) => {
         res.json({
           success: true,
           file: filename,
-          path: `/api/assets/${project}/${filename}`,
+          path: `/api/assets/${encodeURIComponent(safeProject)}/${encodeURIComponent(filename)}`,
           translated_prompt: englishPrompt
         });
       });

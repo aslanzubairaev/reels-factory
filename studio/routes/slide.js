@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const puppeteer = require('puppeteer');
+const { assertSafeProjectName } = require('../lib/projects');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PROJECTS_DIR = path.join(ROOT, 'projects');
@@ -18,6 +19,17 @@ router.post('/generate-slide', async (req, res) => {
     });
   }
 
+  let safeProject;
+  try {
+    safeProject = assertSafeProjectName(project);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const safePartNumber = Number(part_number);
+  if (!Number.isInteger(safePartNumber) || safePartNumber < 1 || safePartNumber > 99) {
+    return res.status(400).json({ error: 'part_number must be an integer between 1 and 99' });
+  }
+
   const validTemplates = ['infographic', 'comparison', 'text-slide', 'text_slide', 'mockup'];
   if (!validTemplates.includes(template)) {
     return res.status(400).json({
@@ -25,7 +37,7 @@ router.post('/generate-slide', async (req, res) => {
     });
   }
 
-  // Normalize template name (text_slide -> text-slide)
+  // Normalize template name (text_slide -> text-slide). Safe: whitelist проверен выше.
   const templateFile = template.replace('_', '-');
 
   try {
@@ -43,19 +55,19 @@ router.post('/generate-slide', async (req, res) => {
     html = html.replace('<script>', dataScript + '\n<script>');
 
     // Prepare output path
-    const slidesDir = path.join(PROJECTS_DIR, project, 'assets', 'slides');
+    const slidesDir = path.join(PROJECTS_DIR, safeProject, 'assets', 'slides');
     fs.mkdirSync(slidesDir, { recursive: true });
 
-    const filename = `part_${part_number}_slide.png`;
+    const filename = `part_${safePartNumber}_slide.png`;
     const outputPath = path.join(slidesDir, filename);
 
     // Version existing file before overwriting
     if (fs.existsSync(outputPath)) {
       let version = 1;
-      while (fs.existsSync(path.join(slidesDir, `part_${part_number}_slide_v${version}.png`))) {
+      while (fs.existsSync(path.join(slidesDir, `part_${safePartNumber}_slide_v${version}.png`))) {
         version++;
       }
-      fs.renameSync(outputPath, path.join(slidesDir, `part_${part_number}_slide_v${version}.png`));
+      fs.renameSync(outputPath, path.join(slidesDir, `part_${safePartNumber}_slide_v${version}.png`));
     }
 
     // Render with Puppeteer (W-015: viewport = 1080x1920)
@@ -81,7 +93,7 @@ router.post('/generate-slide', async (req, res) => {
     res.json({
       success: true,
       file: filename,
-      path: `/api/assets/${project}/slides/${filename}`
+      path: `/api/assets/${encodeURIComponent(safeProject)}/slides/${encodeURIComponent(filename)}`
     });
 
   } catch (e) {
@@ -103,6 +115,16 @@ router.post('/ai-slide-data', async (req, res) => {
   if (!project || !part_number || !template) {
     return res.status(400).json({ error: 'Missing: project, part_number, template' });
   }
+  let safeProject;
+  try {
+    safeProject = assertSafeProjectName(project);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const safePartNumber = Number(part_number);
+  if (!Number.isInteger(safePartNumber) || safePartNumber < 1 || safePartNumber > 99) {
+    return res.status(400).json({ error: 'part_number must be an integer between 1 and 99' });
+  }
   const tmplKey = template.replace('-', '_');
   if (!TEMPLATE_SCHEMAS[tmplKey]) {
     return res.status(400).json({ error: `Unknown template: ${template}` });
@@ -113,11 +135,11 @@ router.post('/ai-slide-data', async (req, res) => {
   }
 
   try {
-    const scriptPath = path.join(PROJECTS_DIR, project, '02_script.json');
+    const scriptPath = path.join(PROJECTS_DIR, safeProject, '02_script.json');
     if (!fs.existsSync(scriptPath)) return res.status(404).json({ error: 'Script not found' });
     const script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
-    const part = script.parts.find(p => p.part_number === Number(part_number));
-    if (!part) return res.status(404).json({ error: `Part ${part_number} not found` });
+    const part = script.parts.find(p => p.part_number === safePartNumber);
+    if (!part) return res.status(404).json({ error: `Part ${safePartNumber} not found` });
 
     const userPrompt = `Ты генерируешь JSON-данные для HTML-слайда в Instagram Reels.
 Автор произносит эту фразу на камеру: "${part.text}"

@@ -65,6 +65,106 @@
       window.addEventListener('resize', () => {
         if (this.isOpen) window.TerminalPanel?.fit();
       });
+
+      // Кнопки позиции (снизу / справа / отдельное окно)
+      this.rootEl.querySelectorAll('.terminal-pos-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pos = btn.dataset.pos;
+          if (pos === 'detach') this.detach();
+          else this.setPosition(pos);
+        });
+      });
+
+      // Drag-handle resize
+      this._installResizeHandle();
+
+      // Голосовой ввод (Wispr Flow / любой voice-to-text): пользователь
+      // диктует в отдельное поле, Enter / кнопка → отправляет в активную сессию.
+      this._installVoiceBar();
+    },
+
+    _installVoiceBar() {
+      const input = document.getElementById('terminal-voice-input');
+      const sendBtn = document.getElementById('terminal-voice-send');
+      if (!input || !sendBtn) return;
+
+      const send = () => {
+        const text = input.value.trim();
+        if (!text) return;
+        const panel = window.TerminalPanel;
+        if (!panel?.sessionId || !window.terminalAPI) {
+          panel?.term?.write('\r\n\x1b[33m[нет активной сессии — выбери backend и нажми ↻]\x1b[0m\r\n');
+          return;
+        }
+        // Отправляем как будто пользователь напечатал + Enter
+        window.terminalAPI.write(panel.sessionId, text + '\r');
+        input.value = '';
+        input.style.height = '';
+      };
+
+      sendBtn.addEventListener('click', send);
+      input.addEventListener('keydown', (e) => {
+        // Enter отправляет, Shift+Enter — перенос строки
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      });
+      // Авто-рост высоты textarea при диктовке длинного текста
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(90, input.scrollHeight) + 'px';
+      });
+    },
+
+    _installResizeHandle() {
+      const handle = document.getElementById('terminal-resize-handle');
+      if (!handle || !this.rootEl) return;
+      let dragging = false, startPos = 0, startSize = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        dragging = true;
+        const isRight = this.rootEl.classList.contains('terminal-pos-right');
+        startPos = isRight ? e.clientX : e.clientY;
+        const rect = this.rootEl.getBoundingClientRect();
+        startSize = isRight ? rect.width : rect.height;
+        document.body.style.cursor = isRight ? 'ew-resize' : 'ns-resize';
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging || !this.rootEl) return;
+        const isRight = this.rootEl.classList.contains('terminal-pos-right');
+        const delta = isRight ? (startPos - e.clientX) : (startPos - e.clientY);
+        const max = isRight ? window.innerWidth * 0.85 : window.innerHeight * 0.85;
+        const newSize = Math.max(200, Math.min(max, startSize + delta));
+        if (isRight) this.rootEl.style.width = `${newSize}px`;
+        else this.rootEl.style.height = `${newSize}px`;
+        window.TerminalPanel?.fit();
+      });
+      window.addEventListener('mouseup', () => {
+        if (dragging) { dragging = false; document.body.style.cursor = ''; }
+      });
+    },
+
+    setPosition(pos) {
+      if (!this.rootEl) return;
+      this.rootEl.classList.remove('terminal-pos-bottom', 'terminal-pos-right');
+      this.rootEl.classList.add(`terminal-pos-${pos}`);
+      this.rootEl.style.width = '';
+      this.rootEl.style.height = '';
+      setTimeout(() => window.TerminalPanel?.fit(), 60);
+    },
+
+    async detach() {
+      if (window.terminalAPI?.openDetached) {
+        try {
+          await window.terminalAPI.openDetached();
+          this.close();
+          return;
+        } catch (_) { /* fallback */ }
+      }
+      const url = window.location.origin + '/terminal-window.html';
+      window.open(url, 'reels-terminal', 'width=900,height=600');
     },
 
     _populateBackendSelect(list) {

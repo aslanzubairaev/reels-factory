@@ -47,12 +47,19 @@ def cleanup(project_dir: Path, keep_transcripts: bool, dry_run: bool) -> None:
         sys.exit(1)
 
     # Если пропустили субтитры — переименовываем recording_full.mp4.
+    # ВАЖНО: recording_full.mp4 всегда свежее любого существующего final_video_subs.mp4
+    # (это результат последней склейки). Перезаписываем старый final, иначе при
+    # повторном /finish новая запись будет удалена, а старый final сохранится.
     final = output / "final_video_subs.mp4"
     recording = output / "recording_full.mp4"
-    if not final.exists() and recording.exists():
+    if recording.exists():
         if dry_run:
-            print(f"[dry-run] RENAME: {recording.name} -> final_video_subs.mp4")
+            action = "RENAME+OVERWRITE" if final.exists() else "RENAME"
+            print(f"[dry-run] {action}: {recording.name} -> final_video_subs.mp4")
         else:
+            if final.exists():
+                final.unlink()
+                print(f"OVERWRITTEN: final_video_subs.mp4 (старый удалён)")
             recording.rename(final)
             print(f"RENAMED: {recording.name} -> final_video_subs.mp4")
 

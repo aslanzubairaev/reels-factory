@@ -17,7 +17,9 @@
   </button>
 
   <!-- Выдвижная панель терминала -->
-  <div id="terminal-panel" class="terminal-panel hidden">
+  <div id="terminal-panel" class="terminal-panel terminal-pos-bottom hidden">
+    <!-- Ресайз-ручка: перетаскиванием меняет размер панели -->
+    <div class="terminal-resize-handle" id="terminal-resize-handle" title="Перетащи чтобы изменить размер"></div>
     <div class="terminal-header">
       <div class="terminal-header-left">
         <span class="terminal-title">💻 Terminal</span>
@@ -25,44 +27,169 @@
         <span class="terminal-status"></span>
       </div>
       <div class="terminal-header-right">
+        <button type="button" class="terminal-btn terminal-pos-btn" data-pos="bottom" title="Прикрепить снизу">⬇</button>
+        <button type="button" class="terminal-btn terminal-pos-btn" data-pos="right" title="Прикрепить справа">➡</button>
+        <button type="button" class="terminal-btn terminal-pos-btn" data-pos="detach" title="Открыть в отдельном окне">⧉</button>
+        <span class="terminal-btn-separator"></span>
         <button type="button" class="terminal-btn terminal-clear" title="Очистить">🗑</button>
         <button type="button" class="terminal-btn terminal-restart" title="Перезапустить">↻</button>
         <button type="button" class="terminal-btn terminal-close" title="Закрыть (Ctrl+`)">✕</button>
       </div>
     </div>
     <div class="terminal-host"></div>
+    <!-- Голосовой ввод (Wispr Flow и подобные): сюда можно диктовать, Enter отправит в AI-CLI -->
+    <div class="terminal-voice-bar">
+      <textarea
+        id="terminal-voice-input"
+        class="terminal-voice-input"
+        rows="1"
+        placeholder="🎙 Поле для голосового ввода (Wispr Flow) — нажми Enter чтобы отправить"
+        autocomplete="off"
+        spellcheck="false"></textarea>
+      <button type="button" id="terminal-voice-send" class="terminal-btn terminal-voice-send" title="Отправить (Enter)">➤</button>
+    </div>
   </div>
 
   <!-- Экран настроек -->
   <div id="settings-screen">
-    <div class="settings-card">
-      <h1>Reels Factory Studio</h1>
-      <p class="subtitle">Настройте сессию записи</p>
-
-      <div class="form-group">
-        <label>Проект</label>
-        <select id="project-select"></select>
+    <div class="settings-shell">
+      <div class="settings-topbar">
+        <div class="settings-brand">
+          <div class="settings-kicker">Studio</div>
+          <div>
+            <h1>Reels Factory Studio</h1>
+            <p class="subtitle">Подготовка проекта и запуск записи.</p>
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Камера</label>
-        <select id="camera-select"></select>
-      </div>
+      <section id="project-library" class="project-library">
+        <div class="project-library-head">
+          <div>
+            <div class="section-kicker">Проекты</div>
+            <h2>Мои проекты</h2>
+          </div>
+          <button type="button" id="new-project-btn" class="btn btn-primary project-create-btn">Новый проект</button>
+        </div>
+        <select id="project-select" class="hidden" aria-hidden="true" tabindex="-1"></select>
+        <div id="project-list" class="project-list"></div>
+      </section>
 
-      <div class="form-group">
-        <label>Микрофон</label>
-        <select id="mic-select"></select>
-      </div>
+      <div class="builder-panel hidden" id="builder-panel">
+        <div class="builder-shell">
+          <div class="builder-project-bar">
+            <div class="builder-project-identity">
+              <div class="builder-column-kicker">Проект</div>
+              <h2 id="builder-project-title">Конструктор проекта</h2>
+              <div id="builder-project-meta" class="builder-project-meta">Выберите существующий проект или создайте новый</div>
+            </div>
+            <button id="back-to-projects-btn" class="btn btn-secondary btn-sm hidden" type="button">← Проекты</button>
+          </div>
 
-      <div class="form-group">
-        <label>Качество записи</label>
-        <select id="quality-select">
-          <option value="1080p">1080p (1080x1920)</option>
-          <option value="720p">720p (720x1280)</option>
-        </select>
-      </div>
+          <div class="builder-workspace">
+            <aside class="builder-parts-column">
+              <div class="builder-column-header">
+                <div>
+                  <div class="builder-column-kicker">Этапы</div>
+                  <div class="builder-column-title">Структура</div>
+                </div>
+                <button id="builder-add-part-btn" class="btn btn-secondary btn-sm" type="button">Добавить этап</button>
+              </div>
 
-      <button id="enter-studio-btn" class="btn btn-primary">Войти в студию</button>
+              <div id="builder-status" class="builder-status">Выберите проект, чтобы редактировать этапы</div>
+              <div id="builder-parts-list" class="builder-parts-list"></div>
+            </aside>
+
+            <section class="builder-editor-column">
+              <div class="builder-header">
+                <div>
+                  <div class="builder-column-kicker">Редактор</div>
+                  <div id="builder-selected-part-label" class="builder-selected-part-label">Этап 1</div>
+                </div>
+                <div class="builder-actions">
+                  <button id="builder-save-btn" class="btn btn-secondary btn-sm hidden" type="button">Сохранить сейчас</button>
+                  <button id="builder-validate-btn" class="btn btn-secondary btn-sm hidden" type="button">Проверить</button>
+                  <button id="builder-delete-part-btn" class="btn btn-danger btn-sm" type="button">Удалить этап</button>
+                </div>
+              </div>
+
+              <div id="builder-editor-empty" class="builder-empty">
+                У проекта пока нет выбранного этапа. Создайте проект или добавьте первый этап.
+              </div>
+
+              <div id="builder-editor-fields" class="hidden">
+                <div class="builder-form-grid">
+                  <div class="builder-main-form">
+                    <div class="form-group">
+                      <label>Текст сценария</label>
+                      <textarea id="builder-text-input" class="builder-textarea builder-script-input" rows="10" placeholder="Напишите текст, который будет в телепромптере"></textarea>
+                    </div>
+                  </div>
+
+                  <div class="builder-side-form">
+                    <div class="builder-grid">
+                      <div class="form-group">
+                        <label>Режим кадра</label>
+                        <select id="builder-layout-select">
+                          <option value="full_background">С фоном</option>
+                          <option value="face_only">Только лицо</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div id="builder-media-group" class="builder-media-card">
+                      <div class="builder-media-head">
+                        <div>
+                          <label>Источник фона</label>
+                          <div id="builder-media-status" class="builder-media-status">Загрузите изображение или видео для этого этапа.</div>
+                        </div>
+                      </div>
+
+                      <div class="builder-media-actions builder-source-actions">
+                        <button id="builder-upload-btn" class="btn btn-secondary" type="button">Изображение / видео</button>
+                        <button id="builder-use-screen-capture-btn" class="btn btn-secondary" type="button">Окно экрана</button>
+                        <button id="builder-connect-screen-capture-btn" class="btn btn-secondary hidden" type="button">Подключить окно</button>
+                        <button id="builder-remove-upload-btn" class="btn btn-secondary hidden" type="button">Сбросить</button>
+                        <input type="file" id="builder-upload-input" accept="image/*,video/*" class="hidden">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <pre id="builder-validation-output" class="builder-validation-output hidden"></pre>
+            </section>
+          </div>
+
+          <aside class="studio-setup-column">
+            <div class="studio-setup-card">
+              <div class="builder-column-kicker">Студия</div>
+              <h3>Подготовка к записи</h3>
+              <p class="studio-setup-copy">Когда этапы готовы, проверьте устройства и переходите в режим записи.</p>
+
+              <div class="toolbar-group">
+                <label>Камера</label>
+                <select id="camera-select"></select>
+              </div>
+
+              <div class="toolbar-group">
+                <label>Микрофон</label>
+                <select id="mic-select"></select>
+              </div>
+
+              <div class="toolbar-group">
+                <label>Формат</label>
+                <select id="quality-select">
+                  <option value="1080p" selected>1080p</option>
+                  <option value="720p">720p</option>
+                </select>
+              </div>
+
+              <button id="enter-studio-btn" class="btn btn-primary studio-enter-btn" disabled>Войти в студию</button>
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -75,109 +202,178 @@
   <!-- Режим Preview -->
   <div id="preview-screen" class="hidden">
     <div class="preview-left">
-      <div class="phone-frame" id="phone-frame">
-        <div id="bg-container"></div>
-        <canvas id="preview-segmentation-canvas" class="preview-seg-canvas hidden"></canvas>
-        <div id="camera-window" class="camera-window layout-face_only cam-pos-center">
-          <video id="camera-video" autoplay playsinline muted></video>
-        </div>
-      </div>
-      <!-- Управление камерой -->
-      <div class="camera-controls">
-        <div class="camera-controls-row">
-          <div class="zoom-control">
-            <label>Размер</label>
-            <input type="range" id="cam-size-slider" min="0.5" max="1.8" step="0.1" value="1">
-            <span id="cam-size-value">1.0x</span>
+      <div class="preview-stage">
+        <aside class="camera-controls" aria-label="Настройки кадра">
+          <div id="camera-tools" class="camera-tools">
+            <div class="camera-tools-title">Настройки кадра</div>
+            <div class="camera-tools-body">
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Камера</div>
+            <div class="zoom-control">
+              <label>Размер окна</label>
+              <input type="range" id="cam-size-slider" min="0.5" max="1.8" step="0.1" value="1">
+              <span id="cam-size-value">1.0x</span>
+            </div>
           </div>
-        </div>
-        <div class="camera-controls-row">
-          <div class="zoom-control">
-            <label>Зум</label>
-            <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
-            <span id="zoom-value">1.0x</span>
+
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Форма окна</div>
+            <select id="camera-shape-select" class="shape-select">
+              <option value="rounded-rect">Прямоугольник</option>
+              <option value="circle">Круг</option>
+            </select>
           </div>
-        </div>
-        <div class="camera-controls-row" id="cam-position-row">
-          <label style="font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Позиция</label>
-          <button class="btn btn-secondary btn-sm cam-pos-btn" data-pos="left">Слева</button>
-          <button class="btn btn-secondary btn-sm cam-pos-btn active" data-pos="center">Центр</button>
-          <button class="btn btn-secondary btn-sm cam-pos-btn" data-pos="right">Справа</button>
-        </div>
-        <div class="camera-controls-row">
-          <button id="mirror-btn" class="btn btn-secondary btn-sm">Зеркало</button>
-          <select id="camera-shape-select" class="shape-select">
-            <option value="rounded-rect">Прямоугольник</option>
-            <option value="circle">Круг</option>
-          </select>
-          <select id="transition-select" class="shape-select">
-            <option value="fade">Fade</option>
-            <option value="slide">Slide</option>
-            <option value="zoom">Zoom</option>
-            <option value="cut">Cut</option>
-          </select>
-        </div>
-        <div class="camera-controls-row">
-          <button id="bg-mode-btn" class="bg-mode-btn">С фоном</button>
-          <button id="no-camera-btn" class="bg-mode-btn">Без меня</button>
-          <select id="click-anim-select" class="shape-select">
-            <option value="none">Клик: Выкл</option>
-            <option value="pulse" selected>Клик: Пульс</option>
-            <option value="rings">Клик: Кольца</option>
-            <option value="spark">Клик: Искры</option>
-            <option value="target">Клик: Фокус</option>
-            <option value="glow">Клик: Свечение</option>
-          </select>
-          <button id="theme-toggle-btn" class="btn btn-secondary btn-sm theme-btn" title="Сменить тему">🌙 Тёмная</button>
+
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Отражение камеры</div>
+            <label class="mirror-toggle-label">
+              <input type="checkbox" id="mirror-toggle-input">
+              <span>🪞 Зеркально (как в вебке)</span>
+            </label>
+          </div>
+
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Переход между этапами</div>
+            <select id="transition-select" class="shape-select">
+              <option value="fade">Плавно</option>
+              <option value="slide">Сдвиг</option>
+              <option value="zoom">Зум</option>
+              <option value="cut">Резко</option>
+            </select>
+          </div>
+
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Анимация по клику</div>
+            <select id="click-anim-select" class="shape-select">
+              <option value="none">Без анимации</option>
+              <option value="pulse" selected>Пульс</option>
+              <option value="rings">Кольца</option>
+              <option value="spark">Искры</option>
+              <option value="target">Фокус</option>
+              <option value="glow">Свечение</option>
+            </select>
+          </div>
+
+          <div class="camera-controls-row camera-controls-card">
+            <div class="camera-control-kicker">Режим</div>
+            <div class="camera-controls-actions">
+              <button id="bg-mode-btn" class="bg-mode-btn">С фоном</button>
+              <button id="no-camera-btn" class="bg-mode-btn">Без меня</button>
+              <button id="theme-toggle-btn" class="btn btn-secondary btn-sm theme-btn" title="Сменить тему">Тёмная тема</button>
+            </div>
+          </div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="preview-phone-column">
+          <div class="panel-section preview-recording-panel">
+            <div class="preview-recording-status-row">
+              <span id="preview-recording-dot" class="preview-recording-dot"></span>
+              <div class="preview-recording-copy">
+                <div id="preview-recording-status" class="preview-recording-status">Готово</div>
+                <div id="preview-recording-hint" class="preview-recording-hint">00:00</div>
+              </div>
+              <div id="preview-recording-timer" class="preview-recording-timer">00:00</div>
+            </div>
+            <div id="preview-recording-readiness" class="recording-readiness hidden">
+              <div id="preview-recording-readiness-text" class="recording-readiness-text">Окно экрана не подключено.</div>
+              <button id="preview-connect-screen-btn" class="btn btn-secondary btn-sm" type="button">Подключить</button>
+            </div>
+            <div class="preview-recording-actions">
+              <button id="start-recording-btn" class="btn btn-record-start" type="button">REC</button>
+              <button id="save-recording-btn" class="btn btn-secondary" type="button" disabled>Сохранить</button>
+              <button id="discard-recording-btn" class="btn btn-secondary hidden" type="button">Игнорировать</button>
+            </div>
+          </div>
+
+          <div class="phone-frame" id="phone-frame">
+            <div id="bg-container"></div>
+            <canvas id="preview-segmentation-canvas" class="preview-seg-canvas hidden"></canvas>
+            <div id="camera-window" class="camera-window layout-face_only">
+              <video id="camera-video" autoplay playsinline muted></video>
+            </div>
+
+            <!-- Instagram safe zones overlay: красные зоны = где UI инстаграма
+                 закроет твой контент. Переключается кнопкой в углу. -->
+            <div class="safe-zones-overlay">
+              <div class="zone-top"><span class="zone-label">⚠ Шапка Instagram</span></div>
+              <div class="zone-right"><span class="zone-label">⚠ Кнопки лайк/коммент</span></div>
+              <div class="zone-bottom"><span class="zone-label">⚠ Никнейм, описание, аудио</span></div>
+            </div>
+
+            <!-- Overlay-телепромптер (если выбрана позиция «сверху» или «центр») -->
+            <div id="preview-teleprompter-overlay" class="teleprompter-overlay hidden">
+              <div id="preview-teleprompter-overlay-text" class="teleprompter-overlay-text"></div>
+            </div>
+            <button type="button" id="safe-zones-toggle" class="safe-zones-toggle-btn" title="Показать/скрыть опасные зоны Instagram">
+              ⚠ Зоны IG
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="preview-right">
-      <!-- СВЕРХУ: Промпт фона -->
-      <div class="panel-section">
-        <h3>Промпт фона</h3>
-        <textarea id="bg-prompt" placeholder="Промпт для генерации фона..."></textarea>
-        <div class="prompt-actions">
-          <button id="generate-btn" class="btn btn-secondary btn-sm">Сгенерировать</button>
-          <button id="upload-bg-btn" class="btn btn-secondary btn-sm">Загрузить свой</button>
-          <button id="remove-custom-btn" class="btn btn-danger btn-sm hidden">Убрать свой</button>
-          <button id="cancel-generate-btn" class="btn btn-danger btn-sm hidden">Отменить</button>
-          <input type="file" id="upload-bg-input" accept="image/*,video/*" class="hidden">
-          <div id="generate-spinner" class="generate-spinner hidden">
-            <div class="spinner-small"></div>
-            <span>Генерация...</span>
+      <div class="preview-topbar">
+        <button id="exit-studio-btn" class="btn btn-secondary btn-sm" type="button">← К проекту</button>
+      </div>
+
+      <div id="preview-teleprompter-side" class="panel-section teleprompter-side-panel">
+        <div class="teleprompter-panel-head">
+          <h3>📖 Сценарий</h3>
+          <div class="teleprompter-side-actions">
+            <select id="teleprompter-position-select" class="shape-select teleprompter-position-select" title="Где показывать текст">
+              <option value="right">Справа</option>
+              <option value="overlay-top">Сверху телефона</option>
+            </select>
+            <button id="edit-script-btn" class="btn btn-secondary btn-sm" type="button">Изменить</button>
+            <button id="preview-teleprompter-side-toggle" class="btn btn-secondary btn-sm" type="button">🚫 Спрятать</button>
           </div>
         </div>
+        <div class="teleprompter-overlay-hint">ℹ Текст показывается поверх превью. Выбери «Справа» в dropdown выше чтобы вернуть крупный текст обратно в панель.</div>
+        <div id="teleprompter-text" class="teleprompter-text-large teleprompter-editable"></div>
+        <div id="teleprompter-editor" class="teleprompter-editor hidden">
+          <textarea id="teleprompter-editor-input" class="teleprompter-editor-input" rows="5" placeholder="Измените текст текущего этапа"></textarea>
+          <div class="teleprompter-editor-actions">
+            <button id="teleprompter-editor-save" class="btn btn-primary btn-sm" type="button">Сохранить текст</button>
+            <button id="teleprompter-editor-cancel" class="btn btn-secondary btn-sm" type="button">Отмена</button>
+            <div id="teleprompter-editor-status" class="teleprompter-editor-status hidden"></div>
+          </div>
+        </div>
+        <div id="teleprompter-edit-hint" class="teleprompter-edit-hint hidden"></div>
       </div>
 
-      <!-- ПОСЕРЕДИНЕ: Текст телепромптера -->
-      <div class="panel-section teleprompter-panel">
-        <h3>Текст сценария</h3>
-        <div id="teleprompter-text" class="teleprompter-text-large"></div>
+      <div class="panel-section stage-rail-panel">
+        <h3>Этапы проекта</h3>
+        <div id="preview-part-rail" class="studio-part-rail"></div>
       </div>
 
-      <!-- СНИЗУ: Информация и навигация -->
-      <div class="panel-section">
-        <div id="part-info" style="font-size:18px;font-weight:700;margin-bottom:6px">Часть 1 / 5</div>
-        <div class="badges-row">
-          <span id="layout-badge" class="badge badge-layout">FACE_ONLY</span>
-          <span id="timing-badge" class="badge badge-time">7 СЕК</span>
-          <span id="type-badge" class="badge badge-type">NONE</span>
+      <div class="panel-section output-files-panel">
+        <div class="output-files-head">
+          <h3>📁 Готовые файлы</h3>
+          <button id="output-refresh-btn" class="btn btn-secondary btn-sm" type="button" title="Обновить список">↻</button>
+          <button id="output-open-folder-btn" class="btn btn-secondary btn-sm" type="button" title="Открыть папку в Проводнике">📂</button>
+        </div>
+        <div id="output-files-list" class="output-files-list">
+          <div class="output-files-empty">Пока нет файлов. После записи и /finish тут появятся видео, обложка, подпись.</div>
         </div>
       </div>
-
-      <div class="panel-section">
-        <div class="nav-bar">
-          <button id="prev-btn" class="btn btn-secondary">Назад</button>
-          <button id="next-btn" class="btn btn-secondary">Вперёд</button>
-        </div>
-        <div class="nav-hint">Стрелки: Влево / Вправо</div>
-      </div>
-
-      <button id="start-recording-btn" class="btn btn-record-start">Начать запись</button>
     </div>
   </div>
+
+  <input type="file" id="upload-bg-input" accept="image/*,video/*" class="hidden studio-compat-control">
+  <button id="upload-bg-btn" class="hidden studio-compat-control" type="button">Загрузить медиа</button>
+  <button id="connect-screen-capture-btn" class="hidden studio-compat-control" type="button">Подключить окно</button>
+  <button id="remove-custom-btn" class="hidden studio-compat-control" type="button">Убрать медиа</button>
+  <div id="generate-spinner" class="generate-spinner hidden studio-compat-control"></div>
+  <div id="part-info" class="hidden studio-compat-control"></div>
+  <span id="layout-badge" class="hidden studio-compat-control"></span>
+  <span id="type-badge" class="hidden studio-compat-control"></span>
+  <div id="bg-panel-title" class="hidden studio-compat-control"></div>
+  <div id="bg-panel-note" class="hidden studio-compat-control"></div>
+  <button id="prev-btn" class="hidden studio-compat-control" type="button">Назад</button>
+  <button id="next-btn" class="hidden studio-compat-control" type="button">Вперёд</button>
 
   <!-- Режим Recording -->
   <div id="recording-screen" class="hidden">
@@ -188,6 +384,16 @@
           <video id="rec-preview-video" class="rec-preview-video hidden" controls playsinline></video>
           <div id="rec-countdown" class="rec-countdown hidden"></div>
           <div id="rec-indicator" class="rec-indicator">REC</div>
+
+          <!-- Instagram safe zones overlay (красные зоны) -->
+          <div class="safe-zones-overlay">
+            <div class="zone-top"><span class="zone-label">⚠ Шапка</span></div>
+            <div class="zone-right"><span class="zone-label">⚠ Кнопки IG</span></div>
+            <div class="zone-bottom"><span class="zone-label">⚠ Описание, аудио</span></div>
+          </div>
+          <button type="button" id="rec-safe-zones-toggle" class="safe-zones-toggle-btn" title="Показать/скрыть опасные зоны">
+            ⚠ Зоны IG
+          </button>
         </div>
       </div>
 
@@ -196,22 +402,40 @@
           <div class="rec-status-left">
             <span id="rec-status-dot" class="rec-status-dot">●</span>
             <span id="rec-status-text">ГОТОВ</span>
-            <span id="rec-part-info" class="rec-part-info">Часть 1 / 5</span>
+            <span id="rec-part-info" class="rec-part-info">Этап 1 / 5</span>
           </div>
-          <div id="rec-timer" class="rec-timer">00:00</div>
         </div>
 
-        <div class="panel-section" style="padding:6px 14px">
+        <div class="panel-section stage-rail-panel">
+          <h3>Этапы проекта</h3>
+          <div id="recording-part-rail" class="studio-part-rail"></div>
+        </div>
+
+        <div class="panel-section" style="padding:10px 20px">
           <div class="badges-row">
             <span id="rec-layout-badge" class="badge badge-layout">FACE_ONLY</span>
-            <span id="rec-timing-badge" class="badge badge-time">7 СЕК</span>
           </div>
         </div>
 
-        <div class="panel-section rec-teleprompter-panel">
-          <h3>Телепромптер</h3>
+        <div id="rec-teleprompter-side" class="panel-section rec-teleprompter-panel">
+          <div class="teleprompter-panel-head">
+            <h3>📖 Телепромптер</h3>
+            <div class="teleprompter-side-actions">
+              <button id="rec-edit-script-btn" class="btn btn-secondary btn-sm" type="button">Изменить</button>
+              <button id="rec-teleprompter-side-toggle" class="btn btn-secondary btn-sm" type="button">🚫 Спрятать</button>
+            </div>
+          </div>
+          <div id="rec-teleprompter-edit-hint" class="teleprompter-edit-hint">Текст можно исправить прямо здесь до записи следующего дубля.</div>
           <div id="rec-teleprompter-scroll" class="rec-teleprompter-scroll">
-            <div id="rec-teleprompter" class="rec-teleprompter-text"></div>
+            <div id="rec-teleprompter" class="rec-teleprompter-text teleprompter-editable"></div>
+          </div>
+          <div id="rec-teleprompter-editor" class="teleprompter-editor hidden">
+            <textarea id="rec-teleprompter-editor-input" class="teleprompter-editor-input" rows="6" placeholder="Измените текст текущего этапа"></textarea>
+            <div class="teleprompter-editor-actions">
+              <button id="rec-teleprompter-editor-save" class="btn btn-primary btn-sm" type="button">Сохранить текст</button>
+              <button id="rec-teleprompter-editor-cancel" class="btn btn-secondary btn-sm" type="button">Отмена</button>
+              <div id="rec-teleprompter-editor-status" class="teleprompter-editor-status hidden"></div>
+            </div>
           </div>
           <div class="autoscroll-controls">
             <label>Автоскролл</label>
@@ -221,29 +445,9 @@
           </div>
         </div>
 
-        <div class="panel-section" style="padding:10px 14px">
+        <div class="panel-section">
           <div id="rec-next-preview" class="rec-next-preview"></div>
-          <div class="auto-advance-row" style="margin-top:6px">
-            <span>Режим</span>
-            <button id="rec-mode-continuous-btn" class="btn btn-secondary btn-sm rec-mode-active">Целиком</button>
-            <button id="rec-mode-perpart-btn" class="btn btn-secondary btn-sm">По слайдам</button>
-          </div>
-          <div class="auto-advance-row" style="margin-top:4px">
-            <span>Автослайд</span>
-            <button id="auto-advance-btn" class="btn btn-secondary btn-sm rec-mode-active">Авто: ВКЛ</button>
-          </div>
-          <div class="auto-advance-row" style="margin-top:4px">
-            <span>Автостоп</span>
-            <button id="auto-stop-btn" class="btn btn-secondary btn-sm rec-mode-active">Авто: ВКЛ</button>
-          </div>
-        </div>
-
-        <!-- Прогресс-бар (скрыт до начала записи) -->
-        <div id="rec-progress-section" class="panel-section hidden" style="padding:10px 20px">
-          <div class="progress-bar-container">
-            <div id="rec-progress-bar" class="progress-bar"></div>
-          </div>
-          <div id="rec-progress-text" class="progress-text">0 / 0 сек</div>
+          <div class="recording-note">Переключайте этапы вручную кнопками ниже или стрелками клавиатуры.</div>
         </div>
 
         <!-- Кнопки -->
@@ -255,7 +459,7 @@
           <!-- Навигация (всегда видна) -->
           <div class="rec-btn-row">
             <button id="rec-prev-btn-nav" class="btn btn-secondary">←</button>
-            <span id="rec-slide-label" style="flex:2;text-align:center;color:var(--text-secondary);font-size:13px">Часть 1 / 7</span>
+            <span id="rec-slide-label" style="flex:2;text-align:center;color:var(--text-secondary);font-size:13px">Этап 1 / 7</span>
             <button id="rec-next-btn-nav" class="btn btn-secondary">→</button>
           </div>
           <!-- Во время записи: Стоп -->
@@ -284,6 +488,7 @@
         <video id="review-video" controls></video>
       </div>
       <div class="review-controls">
+        <button id="review-back-btn" class="btn btn-secondary">К проекту</button>
         <button id="review-play-btn" class="btn btn-primary">Воспроизвести</button>
         <button id="review-save-btn" class="btn btn-record-start">Сохранить</button>
         <button id="review-redo-btn" class="btn btn-secondary">Перезаписать</button>
@@ -292,19 +497,20 @@
   </div>
 
   <!-- Скрипты -->
+  <script src="/js/modal-prompt.js"></script>
+  <script src="/js/screen-picker.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/camera.js"></script>
   <script src="/js/background.js"></script>
   <script src="/js/teleprompter.js"></script>
   <script src="/js/hotkeys.js"></script>
-  <script src="/js/translate.js"></script>
   <script src="/js/segmentation.js"></script>
   <script src="/js/canvas.js"></script>
   <script src="/js/html-slides.js"></script>
+  <script src="/js/recorder.js"></script>
+  <script src="/js/recording-state.js"></script>
   <script src="/js/screen-capture.js"></script>
   <script src="/js/screen-pan.js"></script>
-  <script src="/js/recording-state.js"></script>
-  <script src="/js/recorder.js"></script>
   <script src="/js/app.js"></script>
 
   <!-- xterm.js + terminal panel -->

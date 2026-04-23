@@ -2,35 +2,144 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
+const {
+  assertSafeProjectName,
+  createProjectDraft,
+  getProjectsDir,
+  getProjectDir,
+  readProjectPreferences,
+  readProjectMeta,
+  readProjectScript,
+  writeProjectScript,
+  writeProjectPreferences,
+  touchProjectMeta,
+  listProjectNames
+} = require('../lib/projects');
+const { getPartAssetMetadata } = require('../lib/project-assets');
+const { getValidateScriptPath } = require('../lib/runtime-paths');
 
-const PROJECTS_DIR = path.join(__dirname, '..', '..', 'projects');
+function attachAssetMetadata(projectName, script) {
+  migrateLegacyAssetAliases(projectName, script);
+
+  return {
+    ...script,
+    name: projectName,
+    parts: (script.parts || []).map(part => {
+      const assetMetadata = getPartAssetMetadata(projectName, part);
+
+      return {
+        ...part,
+        custom_file: assetMetadata.customFile,
+        custom_type: assetMetadata.customType,
+        background_file: assetMetadata.backgroundFile,
+        slide_file: assetMetadata.slideFile
+      };
+    })
+  };
+}
+
+function isBadRequestProjectError(message) {
+  return message === 'Invalid project name' || /live background URL/i.test(message);
+}
+
+function getLegacyAliasProjectDir(projectName, script) {
+  const aliasName = typeof script?.project_name === 'string' ? script.project_name.trim() : '';
+  if (!aliasName || aliasName === projectName) {
+    return null;
+  }
+
+  try {
+    assertSafeProjectName(aliasName);
+  } catch (err) {
+    return null;
+  }
+
+  const aliasDir = path.join(getProjectsDir(), aliasName);
+  if (!fs.existsSync(aliasDir) || !fs.statSync(aliasDir).isDirectory()) {
+    return null;
+  }
+
+  if (fs.existsSync(path.join(aliasDir, '02_script.json')) || fs.existsSync(path.join(aliasDir, 'project.meta.json'))) {
+    return null;
+  }
+
+  return aliasDir;
+}
+
+function migrateAssetFiles(fromDir, toDir) {
+  if (!fs.existsSync(fromDir) || !fs.statSync(fromDir).isDirectory()) {
+    return;
+  }
+
+  fs.mkdirSync(toDir, { recursive: true });
+
+  for (const entry of fs.readdirSync(fromDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+
+    const sourcePath = path.join(fromDir, entry.name);
+    const targetPath = path.join(toDir, entry.name);
+    if (fs.existsSync(targetPath)) continue;
+
+    fs.renameSync(sourcePath, targetPath);
+  }
+}
+
+function migrateLegacyAssetAliases(projectName, script) {
+  const aliasDir = getLegacyAliasProjectDir(projectName, script);
+  if (!aliasDir) {
+    return;
+  }
+
+  const projectDir = getProjectDir(projectName);
+  const sourceAssetsDir = path.join(aliasDir, 'assets');
+  const targetAssetsDir = path.join(projectDir, 'assets');
+
+  migrateAssetFiles(path.join(sourceAssetsDir, 'custom'), path.join(targetAssetsDir, 'custom'));
+  migrateAssetFiles(path.join(sourceAssetsDir, 'backgrounds'), path.join(targetAssetsDir, 'backgrounds'));
+  migrateAssetFiles(path.join(sourceAssetsDir, 'slides'), path.join(targetAssetsDir, 'slides'));
+}
 
 // GET /api/projects — list all projects
 router.get('/projects', (req, res) => {
   try {
-    if (!fs.existsSync(PROJECTS_DIR)) {
-      return res.json({ projects: [] });
-    }
-
-    const projects = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })
-      .filter(d => d.isDirectory())
-      .map(d => {
-        const scriptPath = path.join(PROJECTS_DIR, d.name, '02_script.json');
-        let script = null;
-        if (fs.existsSync(scriptPath)) {
-          try {
-            script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
-          } catch (e) { /* ignore parse errors */ }
+    const projects = listProjectNames()
+      .map(projectName => {
+        const projectDir = getProjectDir(projectName);
+        const hasScriptFile = fs.existsSync(path.join(projectDir, '02_script.json'));
+        const hasMetaFile = fs.existsSync(path.join(projectDir, 'project.meta.json'));
+        if (!hasScriptFile && !hasMetaFile) {
+          return null;
         }
+
+        let script = null;
+        let meta = null;
+
+        try {
+          script = readProjectScript(projectName);
+          meta = readProjectMeta(projectName, script);
+        } catch (e) {
+          meta = null;
+        }
+
         return {
-          name: d.name,
+          name: projectName,
           has_script: !!script,
           language: script?.language || null,
           total_duration: script?.total_duration_seconds || null,
-          parts_count: script?.parts?.length || 0
+          parts_count: script?.parts?.length || 0,
+          source_mode: meta?.source_mode || 'classic',
+          status: meta?.status || (script ? 'ready' : 'draft'),
+          created_at: meta?.created_at || null,
+          updated_at: meta?.updated_at || null
         };
       })
-      .sort((a, b) => b.name.localeCompare(a.name));
+      .filter(Boolean)
+      .sort((a, b) => {
+        const aUpdated = a.updated_at || '';
+        const bUpdated = b.updated_at || '';
+        return bUpdated.localeCompare(aUpdated) || b.name.localeCompare(a.name);
+      });
 
     res.json({ projects });
   } catch (err) {
@@ -38,186 +147,256 @@ router.get('/projects', (req, res) => {
   }
 });
 
+// POST /api/projects — create a new draft project for the in-studio builder
+router.post('/projects', (req, res) => {
+  try {
+    const displayName = req.body?.display_name || req.body?.name || req.body?.title;
+    const language = req.body?.language || 'ru';
+    const sourceMode = req.body?.source_mode || 'studio';
+    const initialScript = req.body?.initial_script || null;
+
+    const { projectName, script, meta } = createProjectDraft({
+      displayName,
+      language,
+      sourceMode,
+      initialScript
+    });
+
+    res.status(201).json({
+      success: true,
+      name: projectName,
+      script,
+      meta
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // GET /api/project/:name — project data (script.json)
 router.get('/project/:name', (req, res) => {
   try {
-    const projectDir = path.join(PROJECTS_DIR, req.params.name);
+    const projectName = assertSafeProjectName(req.params.name);
+    const projectDir = getProjectDir(projectName);
     if (!fs.existsSync(projectDir)) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const scriptPath = path.join(projectDir, '02_script.json');
-    if (!fs.existsSync(scriptPath)) {
+    const script = readProjectScript(projectName);
+    if (!script) {
       return res.status(404).json({ error: 'Script not found for this project' });
     }
 
-    const script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
+    const responseScript = attachAssetMetadata(projectName, script);
+    responseScript.meta = readProjectMeta(projectName, script);
 
-    // Check which backgrounds exist — priority: custom/ > backgrounds/ > slides/
-    const customDir = path.join(projectDir, 'assets', 'custom');
-    const bgDir = path.join(projectDir, 'assets', 'backgrounds');
-    const slidesDir = path.join(projectDir, 'assets', 'slides');
-    const customFiles = fs.existsSync(customDir) ? fs.readdirSync(customDir) : [];
-    const bgFiles = fs.existsSync(bgDir) ? fs.readdirSync(bgDir) : [];
-    const slideFiles = fs.existsSync(slidesDir) ? fs.readdirSync(slidesDir) : [];
-
-    script.parts = script.parts.map(part => {
-      const n = part.part_number;
-
-      // Check custom/ for any file matching part_N.*
-      const customFile = customFiles.find(f => f.match(new RegExp(`^part_${n}\\.(jpg|jpeg|png|webp|mp4|webm|mov)$`, 'i')));
-      const customType = customFile && /\.(mp4|webm|mov)$/i.test(customFile) ? 'video' : 'photo';
-
-      const jpgFile = `part_${n}_bg.jpg`;
-      const mp4File = `part_${n}_bg.mp4`;
-      const slideFile = `part_${n}_slide.png`;
-
-      // Only expose a source that matches the part's declared background_type,
-      // so old files left on disk from a previous type don't override the new one.
-      const usesAiBg = part.background_type === 'photo' || part.background_type === 'video';
-      const usesSlide = part.background_type === 'html_slide';
-
-      return {
-        ...part,
-        custom_file: customFile || null,
-        custom_type: customFile ? customType : null,
-        background_file: usesAiBg
-          ? (bgFiles.includes(jpgFile) ? jpgFile : bgFiles.includes(mp4File) ? mp4File : null)
-          : null,
-        slide_file: usesSlide && slideFiles.includes(slideFile) ? slideFile : null
-      };
-    });
-
-    res.json(script);
+    res.json(responseScript);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const statusCode = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
   }
 });
 
-const VALID_TYPES = new Set(['photo', 'video', 'html_slide', 'screen', 'none']);
-const VALID_CATEGORIES = new Set(['text_slide', 'infographic', 'comparison', 'mockup']);
-
-const SLIDE_DATA_DEFAULTS = {
-  text_slide: { text: 'Новый заголовок', subtitle: 'Подзаголовок' },
-  infographic: {
-    title: 'Заголовок',
-    items: [
-      { icon: '📊', value: '100%', label: 'Описание', progress: 100 }
-    ]
-  },
-  comparison: {
-    left_title: 'До',
-    right_title: 'После',
-    left_items: ['Минус'],
-    right_items: ['Плюс']
-  },
-  mockup: {
-    title: 'Заголовок',
-    columns: ['Колонка 1'],
-    rows: [{ cells: ['Ячейка 1'] }]
-  }
-};
-
-function slideDataMatchesCategory(data, category) {
-  if (!data || typeof data !== 'object') return false;
-  switch (category) {
-    case 'text_slide':  return typeof data.text === 'string';
-    case 'infographic': return typeof data.title === 'string' && Array.isArray(data.items);
-    case 'comparison':  return typeof data.left_title === 'string' && typeof data.right_title === 'string'
-                               && Array.isArray(data.left_items) && Array.isArray(data.right_items);
-    case 'mockup':      return typeof data.title === 'string' && Array.isArray(data.rows);
-    default: return false;
-  }
-}
-
-// Mutates `part` in place so it is valid against the schema for `newType`.
-function normalizePart(part, newType, newCategory, patch) {
-  part.background_type = newType;
-
-  if (newType === 'none') {
-    part.background_prompt = '';
-    part.background_prompt_display = '';
-    delete part.background_category;
-    delete part.slide_data;
-    delete part.claim;
-    delete part.visual_proof;
-    part.layout = 'face_only';
-  } else if (newType === 'photo' || newType === 'video') {
-    part.background_prompt = typeof patch.background_prompt === 'string'
-      ? patch.background_prompt
-      : (part.background_prompt || '');
-    delete part.background_category;
-    delete part.slide_data;
-    part.claim = part.claim || 'Заполните claim';
-    part.visual_proof = part.visual_proof || 'Заполните visual_proof';
-    if (part.layout === 'face_only') part.layout = 'full_background';
-  } else if (newType === 'html_slide') {
-    part.background_prompt = '';
-    const cat = VALID_CATEGORIES.has(newCategory) ? newCategory
-              : VALID_CATEGORIES.has(part.background_category) ? part.background_category
-              : 'text_slide';
-    part.background_category = cat;
-    const incomingData = patch.slide_data;
-    if (incomingData && slideDataMatchesCategory(incomingData, cat)) {
-      part.slide_data = incomingData;
-    } else if (!slideDataMatchesCategory(part.slide_data, cat)) {
-      part.slide_data = JSON.parse(JSON.stringify(SLIDE_DATA_DEFAULTS[cat]));
-    }
-    part.claim = part.claim || 'Заполните claim';
-    part.visual_proof = part.visual_proof || 'Заполните visual_proof';
-    if (part.layout === 'face_only') part.layout = 'full_background';
-  } else if (newType === 'screen') {
-    // Live screen capture at record time — no AI prompt, no slide data.
-    part.background_prompt = '';
-    part.background_prompt_display = '';
-    delete part.background_category;
-    delete part.slide_data;
-    part.claim = part.claim || 'Заполните claim';
-    part.visual_proof = part.visual_proof || 'Заполните visual_proof';
-    if (part.layout === 'face_only') part.layout = 'full_background';
-  }
-
-  // Apply free-text fields from patch if provided
-  if (typeof patch.claim === 'string') part.claim = patch.claim;
-  if (typeof patch.visual_proof === 'string') part.visual_proof = patch.visual_proof;
-  if (typeof patch.background_prompt_display === 'string') part.background_prompt_display = patch.background_prompt_display;
-}
-
-// PATCH /api/project/:name/part/:n — update a single part's background config
-router.patch('/project/:name/part/:n', (req, res) => {
+// PUT /api/project/:name/script — save the canonical project script in draft form
+router.put('/project/:name/script', (req, res) => {
   try {
-    const projectDir = path.join(PROJECTS_DIR, req.params.name);
-    const scriptPath = path.join(projectDir, '02_script.json');
-    if (!fs.existsSync(scriptPath)) {
-      return res.status(404).json({ error: 'Script not found' });
+    const projectName = assertSafeProjectName(req.params.name);
+    const scriptInput = req.body?.script && typeof req.body.script === 'object'
+      ? req.body.script
+      : req.body;
+    const savedScript = writeProjectScript(projectName, scriptInput);
+    const meta = touchProjectMeta(projectName, {
+      status: req.body?.status || 'draft',
+      source_mode: req.body?.source_mode || readProjectMeta(projectName, savedScript).source_mode
+    }, savedScript);
+
+    res.json({
+      success: true,
+      script: savedScript,
+      meta
+    });
+  } catch (err) {
+    const statusCode = isBadRequestProjectError(err.message) ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
+  }
+});
+
+// GET /api/project/:name/preferences — studio UI preferences stored outside script schema
+router.get('/project/:name/preferences', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const projectDir = getProjectDir(projectName);
+    if (!fs.existsSync(projectDir)) {
+      return res.status(404).json({ error: 'Project not found' });
     }
 
-    const partNum = parseInt(req.params.n, 10);
-    if (!Number.isInteger(partNum) || partNum < 1) {
-      return res.status(400).json({ error: 'Invalid part number' });
+    res.json({ preferences: readProjectPreferences(projectName) });
+  } catch (err) {
+    const statusCode = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
+  }
+});
+
+// PUT /api/project/:name/preferences — persist per-project studio UI preferences
+router.put('/project/:name/preferences', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const projectDir = getProjectDir(projectName);
+    if (!fs.existsSync(projectDir)) {
+      return res.status(404).json({ error: 'Project not found' });
     }
 
-    const patch = req.body || {};
-    const newType = patch.background_type;
-    if (newType !== undefined && !VALID_TYPES.has(newType)) {
-      return res.status(400).json({ error: `Invalid background_type. Must be one of: ${[...VALID_TYPES].join(', ')}` });
+    const preferencesInput = req.body?.preferences && typeof req.body.preferences === 'object'
+      ? req.body.preferences
+      : req.body;
+
+    res.json({
+      success: true,
+      preferences: writeProjectPreferences(projectName, preferencesInput)
+    });
+  } catch (err) {
+    const statusCode = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
+  }
+});
+
+// POST /api/project/:name/validate — run the existing validator on the canonical script
+router.post('/project/:name/validate', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const script = readProjectScript(projectName);
+    if (!script) {
+      return res.status(404).json({ error: 'Script not found for this project' });
     }
-    if (patch.background_category !== undefined && !VALID_CATEGORIES.has(patch.background_category)) {
-      return res.status(400).json({ error: `Invalid background_category. Must be one of: ${[...VALID_CATEGORIES].join(', ')}` });
+
+    execFile('python3', [getValidateScriptPath(), path.join(getProjectsDir(), projectName, '02_script.json')], {
+      timeout: 30000
+    }, (error, stdout, stderr) => {
+      const output = `${stdout || ''}${stderr || ''}`.trim();
+
+      if (error && typeof error.code !== 'number') {
+        return res.status(500).json({ error: output || error.message });
+      }
+
+      if (error && error.code === 2) {
+        return res.status(500).json({ error: output || 'Validator runtime error' });
+      }
+
+      const meta = touchProjectMeta(projectName, {
+        status: error ? 'draft' : 'ready'
+      }, script);
+
+      res.json({
+        valid: !error,
+        output,
+        meta
+      });
+    });
+  } catch (err) {
+    const statusCode = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
+  }
+});
+
+// GET /api/project/:name/output — список файлов в output/ (видео, обложка, caption и т.д.)
+router.get('/project/:name/output', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const outputDir = path.join(getProjectDir(projectName), 'output');
+    if (!fs.existsSync(outputDir)) {
+      return res.json({ files: [] });
     }
 
-    const script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
-    const part = script.parts.find(p => p.part_number === partNum);
-    if (!part) return res.status(404).json({ error: `Part ${partNum} not found` });
+    const files = fs.readdirSync(outputDir, { withFileTypes: true })
+      .filter(d => d.isFile())
+      .map(d => {
+        const full = path.join(outputDir, d.name);
+        let size = 0;
+        let mtime = null;
+        try {
+          const st = fs.statSync(full);
+          size = st.size;
+          mtime = st.mtime.toISOString();
+        } catch (_) {}
+        const ext = path.extname(d.name).toLowerCase();
+        let kind = 'other';
+        if (['.mp4', '.webm', '.mov'].includes(ext)) kind = 'video';
+        else if (['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) kind = 'image';
+        else if (['.txt', '.md', '.srt', '.ass'].includes(ext)) kind = 'text';
+        else if (['.json'].includes(ext)) kind = 'json';
+        return { name: d.name, size, mtime, kind, ext };
+      })
+      .sort((a, b) => (b.mtime || '').localeCompare(a.mtime || ''));
 
-    const targetType = newType || part.background_type;
-    normalizePart(part, targetType, patch.background_category, patch);
+    res.json({ files, path: outputDir });
+  } catch (err) {
+    const status = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
 
-    fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2) + '\n', 'utf-8');
+// GET /api/project/:name/output/:file — отдать файл из output/ (видео, картинка, текст)
+router.get('/project/:name/output/:file', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const fileName = String(req.params.file);
+    // Защита от path traversal
+    if (/[\\/]|\.\./.test(fileName)) {
+      return res.status(400).json({ error: 'Invalid file name' });
+    }
+    const filePath = path.join(getProjectDir(projectName), 'output', fileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.set('Cache-Control', 'no-store, must-revalidate');
+    res.sendFile(path.resolve(filePath));
+  } catch (err) {
+    const status = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
 
-    res.json({ success: true, part });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+// POST /api/project/:name/reveal-output — открыть папку output/ в Проводнике
+router.post('/project/:name/reveal-output', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const outputDir = path.join(getProjectDir(projectName), 'output');
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    // Открываем папку в системном файловом менеджере
+    const opener = process.platform === 'win32' ? 'explorer'
+                 : process.platform === 'darwin' ? 'open'
+                 : 'xdg-open';
+    execFile(opener, [outputDir], () => { /* ignore spawn result — это «запустили и забыли» */ });
+    res.json({ success: true, path: outputDir });
+  } catch (err) {
+    const status = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// DELETE /api/project/:name — удаление проекта целиком (со всеми assets и output)
+router.delete('/project/:name', (req, res) => {
+  try {
+    const projectName = assertSafeProjectName(req.params.name);
+    const projectDir = getProjectDir(projectName);
+    if (!fs.existsSync(projectDir)) {
+      return res.status(404).json({ error: 'Проект не найден' });
+    }
+
+    // Защита: проверяем что путь действительно внутри projects/ и не наружу.
+    const projectsDir = path.resolve(getProjectsDir());
+    const resolved = path.resolve(projectDir);
+    if (!resolved.startsWith(projectsDir + path.sep) || resolved === projectsDir) {
+      return res.status(400).json({ error: 'Некорректный путь проекта' });
+    }
+
+    fs.rmSync(projectDir, { recursive: true, force: true });
+    res.json({ success: true, deleted: projectName });
+  } catch (err) {
+    const statusCode = err.message === 'Invalid project name' ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
   }
 });
 

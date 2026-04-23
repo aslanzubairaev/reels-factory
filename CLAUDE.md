@@ -32,14 +32,21 @@ Multi-agent system for creating Instagram Reels. User talks to Claude Code → C
 4. Visual Agent → `projects/[name]/assets/backgrounds/` и `assets/slides/`
 
 **Recording:**
-5. Web Studio (`studio/server.js` → `http://localhost:3000`) → `projects/[name]/output/recording_full.mp4`
+5. Web Studio → `projects/[name]/output/recording_001.mp4`, `recording_002.mp4`, … (сегменты)
 
-**Post-production** (после записи):
-6. Transcribe Agent → `transcript.txt`, `transcript.json`, `words_raw.json`
-7. Subtitle Agent → ищет безопасную зону (top/center/low); если все грязные — **пропускает субтитры**. Выход: `final_video_subs.mp4`
-8. Analysis Agent → `analysis.json` (тема, CTA, вирусность, `content_category`)
-9. Copywriter Agent → `caption.txt`, `short_caption.txt`, `first_comment.txt`, `hashtags.txt`, `cover_text.json`
-10. Cover Agent → интерактивно: пользователь выбирает **фото из видео** ИЛИ **из `assets/photos/{work,portrait,lifestyle}`** → Gemini собирает обложку в едином бренд-стиле → текст накладывается кодом (белый + оранжевый `#FF6B00`, шрифт Bebas Neue)
+**Post-production** через `/finish` (~2 минуты, 4 шага):
+6. **concat-segments skill** → `recording_full.mp4` (правильная склейка без рассинхрона A/V: stream-copy если параметры совпадают, иначе re-encode с CFR + async-resample аудио)
+7. **Copywriter Agent** → `caption.txt`, `short_caption.txt`, `first_comment.txt`, `hashtags.txt`, `cover_text.json` — читает `02_script.json` напрямую
+8. **Cover Agent** → интерактивно: 3 кадра из видео + 4-5 фото из `assets/photos/{work,portrait,lifestyle}` → пользователь выбирает → Gemini редактирует в единый бренд-фон → текст наложен локально (белый + оранжевый `#FF6B00`, Montserrat ExtraBold, без подчёркивания)
+9. **Cleanup** → 5 финальных файлов в `output/`
+
+**Опциональные субтитры** (`/finish --with-subs`, ~+5 минут):
+- Transcribe (Whisper local) → `transcript.txt`
+- Subtitle Agent → анализирует кадр, если чистая зона есть — вшивает; если нет — пропускает
+
+**Что убрано из базового потока:**
+- Transcribe/Subtitle — опционально через флаг (не для каждого рилза нужны субтитры)
+- Analysis Agent — удалён, его данные уже есть в `02_script.json`
 
 ## Встроенный AI-терминал в Studio
 

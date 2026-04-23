@@ -1,193 +1,180 @@
-# Reels Factory v2
+# Reels Factory
 
-Multi-agent system for creating Instagram Reels — from trending ideas to recorded video.
+Open-source multi-agent система для создания Instagram Reels «под ключ»: от поиска идей до готового пакета (видео + обложка + подпись + хэштеги).
 
-Built for Cursor + Claude Code. You talk to Claude in the terminal, it manages agents, generates content, and launches a web studio for recording.
+Вся рабочая часть делается AI-CLI (Claude Code или Codex) + встроенной веб-студией. Один `/finish` — и у тебя на диске 5 файлов, готовых для публикации.
+
+**Что умеет:**
+- Подбирает идеи на основе трендов и твоей ниши
+- Пишет сценарий и валидирует по JSON-схеме
+- Генерирует фоны: HTML-слайды (локально), Gemini-фото, скринкаст твоего экрана
+- Записывает видео через веб-студию с teleprompter'ом, записью по сегментам, safe-зонами Instagram
+- Склеивает сегменты без рассинхрона A/V
+- Делает обложку в едином бренд-стиле через Gemini + Pillow
+- Генерирует caption, first_comment, hashtags
+- Опциональные субтитры с анализом «чистой» зоны кадра
 
 ---
 
-## Quick Start
+## Быстрый старт
 
 ```bash
-# 1. Clone
-git clone https://github.com/your-username/reels-factory.git
+# 1. Клонируй
+git clone https://github.com/<username>/reels-factory.git
 cd reels-factory
 
-# 2. Setup
-chmod +x setup.sh
-./setup.sh
+# 2. Установи зависимости
+npm install
+pip install -r requirements.txt
 
-# 3. Add API keys to .env (see below)
+# 3. Скопируй .env.example → .env и вставь ключи (см. ниже)
+cp .env.example .env
 
-# 4. Start
-# Open Cursor, launch Claude Code, type:
-# "I want to create a Reel"
+# 4. Запусти студию
+npm run electron     # Desktop-приложение (рекомендуется)
+# или
+npm start            # Веб-версия на http://localhost:3000
 ```
 
----
-
-## API Keys
-
-Open `.env` and add your keys:
-
-| Key | Service | Required | Get it at |
-|-----|---------|----------|-----------|
-| `GEMINI_API_KEY` | Google Gemini (photo + video) | Yes | https://aistudio.google.com |
-| `PIAPI_KEY` | PiAPI / Seedance 2 (video) | Optional | https://piapi.ai |
-| `ANTHROPIC_API_KEY` | Claude (text, search, translation) | Yes | https://console.anthropic.com |
-| `OPENAI_API_KEY` | OpenAI (fallback) | No | https://platform.openai.com |
-
-**IMPORTANT:** Enable billing in Google Cloud Console for image generation. Free tier does not support image generation.
+Далее в встроенном терминале Studio (кнопка «💻 Терминал» или `Ctrl+` `) запускаешь `claude` или `codex` и говоришь «хочу идею для рилза».
 
 ---
 
-## System Requirements
+## Требования
 
-- **OS:** macOS 12+ / Windows 10+ / Ubuntu 20.04+
-- **CPU:** 4+ cores, **RAM:** 8+ GB
-- **Browser:** Chrome 100+ or Safari 16+
-- **Node.js:** 18+, **Python:** 3.9+, **FFmpeg** in PATH
-- **Cursor** with Claude Code
+| Компонент | Минимальная версия | Зачем |
+|---|---|---|
+| **Node.js** | 18+ | Studio-сервер, Electron |
+| **Python** | 3.9+ | Все skills (skills генерации, Whisper, Pillow) |
+| **FFmpeg** | 6+ | Склейка сегментов, конвертация видео |
+| **Chrome/Chromium** | — | Автоматически ставится Puppeteer для HTML-слайдов |
+| **RAM** | 8 GB+ | Одновременно Puppeteer + FFmpeg + Whisper |
+| **ОС** | Windows 10+, macOS 12+, Ubuntu 20.04+ | Electron desktop работает только на Windows/macOS |
+
+Дополнительно нужен либо **Claude Code CLI** (`npm install -g @anthropic-ai/claude-code`), либо **Codex CLI** (`npm install -g @openai/codex`) для AI-оркестрации.
 
 ---
 
-## How It Works
+## API-ключи
+
+Создай `.env` из `.env.example` и заполни:
+
+| Ключ | Сервис | Обязательно? | Где взять |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini (фоны, обложки) | **Да** для AI-фонов и обложек | [aistudio.google.com](https://aistudio.google.com) |
+| `ANTHROPIC_API_KEY` | Anthropic (перевод промптов, ai-slide-data) | Только если юзаешь `/api/generate` и HTML-слайды с AI | [console.anthropic.com](https://console.anthropic.com) |
+| `PIAPI_KEY` | PiAPI / Seedance (AI-видео) | Нет | [piapi.ai](https://piapi.ai) |
+| `OPENAI_API_KEY` | OpenAI (DALL-E fallback) | Нет | [platform.openai.com](https://platform.openai.com) |
+
+**Важно про Gemini:** для генерации изображений нужен **включённый биллинг** в Google Cloud Console. Бесплатный тариф image generation не поддерживает.
+
+**Что если не хочу платить за API:** можешь полностью обойтись подпиской Claude/ChatGPT + `face_only` / `screen_capture` / `html_slide` фонами. Единственное место где нужен Gemini — AI-обложка; её можно заменить на фото из библиотеки с локальным наложением текста.
+
+---
+
+## Типовой workflow
 
 ```
-1. Config Agent (optional)  — Set up creator profile
-2. Trend Agent              — Find trending ideas (with format filter)
-3. Script Agent             — 2-3 script variants + Hook Analyzer + CTA + hashtags
-4. Visual Agent             — 2-3 background variants per slide
-5. Web Studio               — Preview, customize camera, record
+Ты: "Хочу идею для рилза про продуктивность"
+  ↓ Trend Agent: показывает 5 идей, выбираешь
+  ↓ Script Agent: пишет сценарий на 6-7 частей → 02_script.json
+  ↓ Visual Agent: создаёт фоны (HTML-слайды + screen_capture точки + 1-2 AI-фото)
+
+Ты открываешь Studio → записываешь видео → «Сохранить»
+
+Ты: "/finish"
+  ↓ concat-segments: склеивает сегменты → recording_full.mp4
+  ↓ Copywriter: caption + hashtags + cover_text из 02_script.json
+  ↓ Cover: показывает 3 кадра + 5 фото из библиотеки, выбираешь
+  ↓      Gemini редактирует фон в бренд-стиле → Pillow накладывает текст
+  ↓ Cleanup: удаляет промежуточные файлы
+
+В итоге в projects/<имя>/output/ ровно 5 файлов:
+  final_video_subs.mp4  ← видео
+  cover_final.png       ← обложка 1080×1920
+  caption.txt           ← подпись + хэштеги
+  first_comment.txt     ← провокация для алгоритма
+  hashtags.txt          ← теги отдельно
 ```
 
-### Step by Step
-
-**1. Profile (optional):** "Set up my profile" → niche, audience, tone, style → `config/profile.md`
-
-**2. Ideas:** "Find Reel ideas about travel" → 5-10 ideas with audience value → pick one
-
-**3. Script:** "Write script in Russian" → 2-3 variants → Hook analysis → CTA → hashtags → `02_script.json` + `03_hashtags.md`
-
-**4. Backgrounds:** "Generate backgrounds" → 2-3 variants per slide → pick best → `assets/backgrounds/`
-
-**5. Studio:** `node studio/server.js` → http://localhost:3000 → preview → record → MP4
+С субтитрами — `/finish --with-subs` (добавляет ~5 минут на Whisper + анализ кадра + вшивание).
 
 ---
 
-## Web Studio v2
-
-```bash
-node studio/server.js
-# Open http://localhost:3000
-```
-
-### Settings
-- Project, camera, microphone selection
-- Quality: 1080p / 720p
-- Camera shape: circle / rounded rectangle / oval
-- Theme: dark / light
-
-### Preview Mode
-- Phone frame (9:16) with live camera + backgrounds
-- Camera zoom slider (1.0x - 3.0x)
-- Mirror toggle
-- Background prompt editing (in your language, auto-translated)
-- Regenerate backgrounds with spinner
-- Navigate slides with arrow keys
-
-### Recording Mode
-- Large teleprompter (32px) with auto-scroll
-- Countdown 3-2-1
-- Timer per slide
-- Mirror toggle for recording
-- Two modes: continuous / per-part
-- Review before saving
-
-### Hotkeys
-
-| Key | Action |
-|-----|--------|
-| `Arrow Left/Right` | Navigate slides |
-| `Space` | Start / Stop recording |
-| `R` | Re-record current part |
-| `Esc` | Back to Preview |
-
----
-
-## Project Structure
+## Структура проекта
 
 ```
 reels-factory/
-├── .env.example                 # API keys template
-├── CLAUDE.md                    # Instructions for Claude Code
-├── package.json / requirements.txt / setup.sh
-│
 ├── .claude/
-│   ├── agents/                  # Agent instructions (.md files)
-│   │   ├── config-agent.md
-│   │   ├── trend-agent.md
-│   │   ├── script-agent.md
-│   │   └── visual-agent.md
-│   ├── skills/                  # API scripts (SKILL.md + .py)
-│   │   ├── generate-photo/
-│   │   ├── generate-video/
-│   │   ├── validate-script/
-│   │   └── resize-asset/
-│   └── hooks/bash/              # Git hooks
-│
-├── agents/PIPELINE.md           # Pipeline docs for users
-├── studio/                      # Node.js server + web frontend
-├── schemas/script.schema.json   # JSON Schema
-├── projects/                    # Your Reels (gitignored)
-├── history/history.json         # Project history
-└── utils/                       # Utility scripts
+│   ├── agents/               # Инструкции агентов (.md)
+│   ├── skills/               # Python-скрипты для API (generate-photo, subtitle, ...)
+│   ├── commands/finish.md    # Оркестратор пост-продакшна
+│   └── hooks/bash/           # Защита от коммита .env
+├── studio/
+│   ├── server.js             # Express-сервер
+│   ├── routes/               # API (/api/project, /api/generate, /api/record, ...)
+│   ├── public/               # Frontend (HTML + JS + CSS)
+│   ├── lib/                  # Утилиты (runtime-paths, projects)
+│   └── templates/            # HTML-шаблоны для слайдов
+├── electron/
+│   ├── main.js               # Electron main process
+│   ├── preload.js            # Безопасный мост window.terminalAPI
+│   └── ai-backends.json      # Конфиг AI-CLI (claude/codex/shell)
+├── assets/
+│   └── photos/               # Фото автора {work, portrait, lifestyle}
+├── projects/                 # Проекты рилзов (gitignored)
+├── schemas/script.schema.json
+├── CLAUDE.md                 # Главные инструкции для Claude
+├── AGENTS.md                 # Индекс для любого AI-CLI
+└── README.md
 ```
 
 ---
 
-## FAQ
+## Настройка профиля (опционально)
 
-**Q: What is "Nanobanana"?**
-A: It's the codename for Google Gemini's image generation model (`gemini-3-pro-image-preview`). It uses the same `GEMINI_API_KEY`. There is no separate "nanobanana.com" service.
+Создай `config/profile.md` с описанием себя: имя, ниша, стиль, аудитория, CTA-предпочтения. Агенты будут учитывать это при генерации.
 
-**Q: Do I need billing enabled?**
-A: Yes, for image generation. Google's free tier doesn't support it. Enable at console.cloud.google.com.
+Пример:
+```markdown
+# Автор
 
-**Q: What languages are supported?**
-A: Any language. Prompts are auto-translated to English for better generation quality. You see and edit prompts in your language.
-
-**Q: How long can a Reel be?**
-A: Maximum 90 seconds (Instagram limit). The validator enforces this.
-
-**Q: Can I use my own idea?**
-A: Yes. Say "I have my own idea: ..." and Claude will structure it.
+- Имя: Иван
+- Ниша: Productivity, AI-инструменты
+- Тон: экспертный, прямой, без воды
+- CTA по умолчанию: «напиши KEYWORD в комменты»
+- Русскоязычная аудитория, мужчины 25-35
+```
 
 ---
 
-## Troubleshooting
+## Безопасность
 
-**Image generation fails with 403**
-- Enable billing in Google Cloud Console
-- Check that `GEMINI_API_KEY` starts with `AIzaSy...`
+- `.env` — никогда не коммитится (в `.gitignore` + pre-commit hook `.claude/hooks/bash/protect-env.sh`)
+- CORS в Studio ограничен `localhost` — API не доступен извне
+- CSP headers на всех HTTP-ответах
+- Electron: `contextIsolation: true`, `nodeIntegration: false`, whitelist команд для terminal:spawn через `electron/ai-backends.json`
+- Все пути к проектам валидируются через `assertSafeProjectName` (защита от path traversal)
+- Дочерние процессы получают только нужные env-переменные (не весь environment)
 
-**Camera not showing**
-- Allow camera/microphone in browser settings
-- Use Chrome (recommended)
+---
 
-**FFmpeg not found**
+## Команды
+
 ```bash
-brew install ffmpeg        # macOS
-sudo apt install ffmpeg    # Ubuntu
-winget install ffmpeg      # Windows
+npm start            # Studio-сервер на :3000
+npm run electron     # Desktop-приложение (Windows/Mac)
+npm run build:win    # NSIS инсталлятор Windows
 ```
-
-**Background looks wrong (black bars)**
-- Backgrounds are auto-resized to 1080x1920
-- If issue persists, regenerate the background
 
 ---
 
-## License
+## Лицензия
 
-MIT
+MIT — см. `LICENSE`.
+
+## Автор
+
+Автор: [Aslan](https://github.com/<username>)
+
+Контрибуции и pull requests приветствуются. Для багов — открывай issue с логами.

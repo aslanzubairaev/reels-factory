@@ -3,10 +3,13 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-
-const ROOT = path.join(__dirname, '..', '..');
-const PROJECTS_DIR = path.join(ROOT, 'projects');
-const HISTORY_PATH = path.join(ROOT, 'history', 'history.json');
+const { readProjectMeta, readProjectScript, touchProjectMeta } = require('../lib/projects');
+const { getHistoryPath, getProjectsDir } = require('../lib/runtime-paths');
+const {
+  getRecordingOutputDir,
+  getRecordingUploadExtension,
+  resolveRecordingBaseName
+} = require('../lib/recordings');
 
 // Configure multer for video uploads
 const storage = multer.diskStorage({
@@ -16,14 +19,24 @@ const storage = multer.diskStorage({
       return cb(new Error('Missing project name'));
     }
 
-    const outputDir = path.join(PROJECTS_DIR, project, 'output');
-    fs.mkdirSync(outputDir, { recursive: true });
-    cb(null, outputDir);
+    try {
+      cb(null, getRecordingOutputDir(project));
+    } catch (error) {
+      cb(error);
+    }
   },
   filename: (req, file, cb) => {
-    const name = req.body.filename || req.query.filename || 'recording_full';
-    const ext = path.extname(file.originalname) || '.webm';
-    cb(null, name + ext);
+    try {
+      const project = req.body.project || req.query.project;
+      if (!project) {
+        throw new Error('Missing project name');
+      }
+      const name = resolveRecordingBaseName(project, req.body.filename || req.query.filename);
+      const ext = getRecordingUploadExtension(file.mimetype, file.originalname);
+      cb(null, name + ext);
+    } catch (error) {
+      cb(error);
+    }
   }
 });
 
@@ -42,6 +55,11 @@ router.post('/record/save', upload.single('video'), (req, res) => {
     // Add to history
     const project = req.body.project || req.query.project;
     if (project) {
+      try {
+        touchProjectMeta(project, { status: 'recorded' });
+      } catch (e) {
+        console.error('Failed to update project meta:', e.message);
+      }
       addToHistory(project);
     }
 
@@ -56,15 +74,35 @@ router.post('/record/save', upload.single('video'), (req, res) => {
   }
 });
 
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err && (
+    err.message === 'Invalid project name' ||
+    err.message === 'Invalid recording filename' ||
+    err.message === 'Missing project name' ||
+    err.message === 'No available recording filename' ||
+    err.message.startsWith('Unsupported recording type:')
+  )) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  next(err);
+});
+
 /**
  * Add a project to history.json
  */
 function addToHistory(projectName) {
   try {
+    const historyPath = getHistoryPath();
+    const projectsDir = getProjectsDir();
     // Read existing history
     let history = { projects: [] };
-    if (fs.existsSync(HISTORY_PATH)) {
-      history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf-8'));
+    if (fs.existsSync(historyPath)) {
+      history = JSON.parse(fs.readFileSync(historyPath, 'utf-8'));
     }
 
     // Check if already recorded
@@ -73,14 +111,11 @@ function addToHistory(projectName) {
     }
 
     // Read script for metadata
-    const scriptPath = path.join(PROJECTS_DIR, projectName, '02_script.json');
-    let script = null;
-    if (fs.existsSync(scriptPath)) {
-      script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8'));
-    }
+    const script = readProjectScript(projectName);
+    const meta = readProjectMeta(projectName, script);
 
     // Read trend for idea text
-    const trendPath = path.join(PROJECTS_DIR, projectName, '01_trend.md');
+    const trendPath = path.join(projectsDir, projectName, '01_trend.md');
     let idea = '';
     if (fs.existsSync(trendPath)) {
       const trendContent = fs.readFileSync(trendPath, 'utf-8');
@@ -103,12 +138,13 @@ function addToHistory(projectName) {
       language: script?.language || '',
       parts_count: script?.parts?.length || 0,
       total_duration: script?.total_duration_seconds || 0,
+      source_mode: meta.source_mode,
       status: 'completed'
     });
 
     // Save
-    fs.mkdirSync(path.dirname(HISTORY_PATH), { recursive: true });
-    fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2), 'utf-8');
+    fs.mkdirSync(path.dirname(historyPath), { recursive: true });
+    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2), 'utf-8');
     console.log(`History updated: ${projectName}`);
   } catch (e) {
     console.error('Failed to update history:', e.message);

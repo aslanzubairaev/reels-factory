@@ -11,7 +11,7 @@
  *   — Приложение закрывается полностью.
  */
 
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session, desktopCapturer } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -153,6 +153,20 @@ function createWindow() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
   mainWindow.loadURL(STUDIO_URL);
+
+  // Логируем ошибки renderer в main-лог (без авто-открытия DevTools).
+  // Открыть DevTools можно вручную через меню Studio → Toggle Developer Tools
+  // или горячую клавишу F12 / Ctrl+Shift+I.
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    if (level === 3) {
+      console.error(`[renderer:ERROR] ${message} (${sourceId}:${line})`);
+    } else if (level === 2) {
+      console.warn(`[renderer:WARN] ${message}`);
+    }
+  });
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[renderer] render-process-gone:', details);
+  });
 
   // Внешние ссылки — в системный браузер, а не в окне приложения.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -329,6 +343,31 @@ ipcMain.handle('terminal:kill', (_event, sessionId) => {
   return { ok: true };
 });
 
+// Отдельное окно с terminal-view (без остального UI Studio)
+let detachedTerminalWindow = null;
+ipcMain.handle('terminal:open-detached', () => {
+  if (detachedTerminalWindow && !detachedTerminalWindow.isDestroyed()) {
+    detachedTerminalWindow.focus();
+    return { ok: true };
+  }
+  detachedTerminalWindow = new BrowserWindow({
+    width: 900,
+    height: 600,
+    title: 'Reels Factory — Terminal',
+    backgroundColor: '#0a0a14',
+    icon: path.join(__dirname, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  detachedTerminalWindow.loadURL(`${STUDIO_URL}/terminal-window.html`);
+  detachedTerminalWindow.on('closed', () => { detachedTerminalWindow = null; });
+  return { ok: true };
+});
+
 // Убить все сессии при выходе
 function killAllTerminalSessions() {
   for (const [sessionId, session] of terminalSessions) {
@@ -345,6 +384,52 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+
+  // Кастомный picker экрана: main просит renderer показать модалку со списком
+  // источников. Renderer возвращает выбранный id. Надёжнее, чем useSystemPicker
+  // (тот работает не на всех версиях Windows).
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 200 }
+      });
+      if (!sources.length) {
+        callback({});
+        return;
+      }
+
+      // Сериализуем с thumbnail как dataURL
+      const payload = sources.map(s => ({
+        id: s.id,
+        name: s.name,
+        display_id: s.display_id,
+        kind: s.id.startsWith('screen:') ? 'screen' : 'window',
+        thumbnailDataUrl: s.thumbnail?.toDataURL?.() || null
+      }));
+
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        callback({ video: sources[0] });
+        return;
+      }
+
+      // Показываем picker в renderer и ждём выбора
+      const pickedId = await mainWindow.webContents.executeJavaScript(
+        `window.__pickScreenSource(${JSON.stringify(payload)})`
+      );
+      if (!pickedId) {
+        // Отмена
+        callback({});
+        return;
+      }
+      const chosen = sources.find(s => s.id === pickedId) || sources[0];
+      callback({ video: chosen });
+    } catch (err) {
+      console.error('[main] display-media handler error:', err);
+      callback({});
+    }
+  });
+
   createWindow();
 
   app.on('activate', () => {

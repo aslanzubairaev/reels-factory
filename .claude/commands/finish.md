@@ -1,80 +1,89 @@
-# /finish — Автомат пост-продакшна
+# /finish — Быстрый пост-продакшн
 
-После того как пользователь записал видео в Studio, `/finish` прогоняет **все** шаги пост-продакшна end-to-end и оставляет 5 файлов для публикации.
+После записи в Studio `/finish` собирает финальный пакет для Instagram **за ~2 минуты** (без субтитров) или **за ~8 минут** с флагом `--with-subs`.
 
 ## Вход
-- Аргумент (опционально): имя проекта, например `/finish 2026-04-20_my-reel`
-- Если аргумент не задан — взять **последний** проект с непустым `output/recording_full.{mp4,webm}`
+- Аргумент 1 (опционально): имя проекта. Если не задан — последний проект с файлами записи.
+- Флаг `--with-subs` — включает субтитры (Transcribe + Subtitle). По умолчанию **выключено**.
 
-## Поток (без пауз кроме одной)
+## Шаги (4, плюс 2 опциональных)
 
-### 0. Подготовка видео
-- Если в `projects/{name}/output/` есть `recording_full.webm` и **нет** `recording_full.mp4`:
-  ```
-  ffmpeg -y -i recording_full.webm -c:v libx264 -preset medium -crf 20 -c:a aac -b:a 128k recording_full.mp4
-  ```
-- Удалить `.webm` после успешной конвертации.
+### 0. Подготовка видео (ВСЕГДА)
 
-### 1. Transcribe (агент 6)
+**0a.** Если есть `recording_full.webm` и нет `recording_full.mp4`:
+```
+ffmpeg -y -i recording_full.webm -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -vsync cfr -r 30 -c:a aac -b:a 192k -ar 48000 -af aresample=async=1:first_pts=0 -movflags +faststart recording_full.mp4
+```
+(CFR + async-resample — иначе видео отстаёт от аудио.)
+
+**0b.** Если в `output/` есть несколько `recording_NNN.mp4` и нет `recording_full.mp4` — **обязательно** запустить skill:
+```bash
+python .claude/skills/concat-segments/concat.py projects/{name}/output/
+```
+Самостоятельно `ffmpeg -filter_complex "fps=30,setpts=..."` **не использовать** — ломает синхрон. Skill сам выбирает stream-copy или re-encode с CFR.
+
+**0c.** После успеха — не удалять сегменты вручную, их уберёт cleanup на шаге 4.
+
+---
+
+### [опционально при `--with-subs`] 1a. Transcribe
 ```bash
 python .claude/skills/transcribe/transcribe.py projects/{name}/output/recording_full.mp4
 ```
-Проверить, что создались `transcript_raw.txt`, `transcript.json`, `words_raw.json`. Затем создать исправленный `transcript.txt` + `transcript_corrections.md` (правки Whisper по кириллице, терминам).
+Сверяет `transcript_raw.txt` со скриптом (`02_script.json`), исправляет ослышки → `transcript.txt` + `transcript_corrections.md`.
 
-### 2. Subtitle (агент 7)
+### [опционально при `--with-subs`] 1b. Subtitle
 ```bash
 python .claude/skills/subtitle/analyze_frame.py projects/{name}/output/recording_full.mp4
 ```
-Прочитать `subtitle_placement.json`:
-- `subtitles_enabled: true` → сгенерировать `subtitles.ass`/`.srt` и вшить:
-  ```bash
-  python .claude/skills/subtitle/generate_subs.py projects/{name}/output/
-  python .claude/skills/subtitle/render_video.py projects/{name}/output/recording_full.mp4 projects/{name}/output/subtitles.ass
-  ```
-- `subtitles_enabled: false` → **пропустить вшивание**. Cleanup позже переименует `recording_full.mp4` в `final_video_subs.mp4`.
+Читает `subtitle_placement.json`:
+- Если зона чистая → `generate_subs.py` + `render_video.py` → `final_video_subs.mp4`
+- Если грязно → **пропускает вшивание** (не портит визуал)
 
-### 3. Analysis (агент 8)
-Прочитать `transcript.txt`, `config/profile.md`. Создать `projects/{name}/output/analysis.json` по схеме (topic, slug, main_value, pain_point, content_category, cta_type, virality_score, next_content_ideas). Без внешних API.
+---
 
-### 4. Copywriter (агент 9)
-Создать в `projects/{name}/output/`:
-- `cover_text.json` — `{line1, line2, badge}` (белый + оранжевый)
-- `caption.txt` — полный пост на русском с hook + CTA + 15-20 хэштегов
+### 2. Copywriter
+
+Запустить агента **из `.claude/agents/copywriter-agent.md`**. Source — `02_script.json` (не transcript, не analysis.json).
+
+Выход в `projects/{name}/output/`:
+- `cover_text.json` — `{line1, line2}` (цепляющий хук)
+- `caption.txt` — пост с hook + польза + CTA + 15-20 хэштегов
 - `short_caption.txt` — до 150 символов
-- `first_comment.txt` — 1-2 предложения провокация
-- `hashtags.txt` — 15-20 хэштегов через пробел
+- `first_comment.txt` — провокация обсуждения
+- `hashtags.txt` — теги через пробел
 
-### 5. Cover (агент 10) — **ЕДИНСТВЕННАЯ ПАУЗА**
-1. `python .claude/skills/generate-cover/extract_frames.py projects/{name}/output/recording_full.mp4` — топ-3 кадра.
-2. Прочитать `content_category` из `analysis.json` → выбрать папку:
-   - `programming` / `ai` / `automation` / `tools` → `assets/photos/work/`
-   - `productivity` / `motivation` → `assets/photos/portrait/`
+### 3. Cover — **ЕДИНСТВЕННАЯ ПАУЗА**
+
+1. `python .claude/skills/generate-cover/extract_frames.py projects/{name}/output/recording_full.mp4` — 3 кадра.
+2. Выбрать папку фото-библиотеки на основе темы в `02_script.json`:
+   - код/AI/автоматизация/инструменты → `assets/photos/work/`
+   - продуктивность/мотивация/привычки → `assets/photos/portrait/`
    - остальное → `assets/photos/lifestyle/`
-3. Показать пользователю **3 кадра из видео + 4-5 фото из библиотеки**. Попросить выбрать.
+3. Показать пользователю **3 кадра + 4-5 фото из библиотеки**, попросить выбрать.
 4. После выбора:
    ```bash
    python .claude/skills/generate-cover/generate_bg.py <выбранный_файл> --title "<line1> <line2>"
    python .claude/skills/generate-cover/overlay_text.py <cover_bg_generated.png> <cover_text.json>
    ```
 
-### 6. Cleanup (последний)
+### 4. Cleanup
 ```bash
 python .claude/skills/cleanup-project/cleanup.py projects/{name}/
 ```
-Оставляет в `output/` ровно 5 файлов.
+Оставляет 5 файлов. Если субтитры не вшивались — переименовывает `recording_full.mp4` → `final_video_subs.mp4`.
 
 ## Финальный отчёт
-Вывести компактную таблицу:
-
 ```
 ════════════════════════════════════════
   ГОТОВО ✓
 ════════════════════════════════════════
 Проект: <name>
 Длительность: <sec> сек
+Субтитры: вшиты / пропущены / не запрашивались
 
 Пакет для Instagram:
-  final_video_subs.mp4   (видео + субтитры + цветокоррекция)
+  final_video_subs.mp4   (видео)
   cover_final.png        (обложка 1080×1920)
   caption.txt            (описание поста)
   first_comment.txt      (первый комментарий)
@@ -85,7 +94,7 @@ python .claude/skills/cleanup-project/cleanup.py projects/{name}/
 ```
 
 ## Правила
-- **НИКАКИХ подтверждений** кроме выбора фото для обложки (шаг 5).
-- При ошибке на любом шаге — вывести текст ошибки + предложить «повторить шаг X» / «пропустить». Не откатывать успешные шаги.
-- Не переспрашивать имя проекта, если на диске только один подходящий.
-- Не выводить отчёт каждого подагента — только итоговую таблицу в конце.
+- Пауза ровно одна — шаг 3 (выбор фото).
+- На ошибке одного шага — вывести ошибку + «повторить» / «пропустить». Не откатывать успешные шаги.
+- Не показывать отчёты каждого под-агента.
+- Если `--with-subs` не передан — шаги 1a/1b пропускаются молча.

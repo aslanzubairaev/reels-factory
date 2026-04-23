@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>Terminal — Reels Factory</title>
+  <link rel="stylesheet" href="/css/studio.css">
+  <link rel="stylesheet" href="/css/dark-theme.css">
+  <link rel="stylesheet" href="/vendor/xterm/xterm/css/xterm.css">
+  <style>
+    html, body { height: 100%; margin: 0; background: #0a0a14; color: #d8dee9; }
+    .detached-terminal {
+      display: flex; flex-direction: column;
+      height: 100vh; width: 100vw;
+    }
+    .detached-terminal-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px;
+      background: #15151f;
+      border-bottom: 1px solid #2a2a3a;
+    }
+    .detached-terminal-header .terminal-title { color: #ff6b00; font-weight: 700; font-size: 13px; }
+    .detached-terminal-body {
+      flex: 1; padding: 8px; min-height: 0;
+    }
+    .detached-terminal-body .xterm { height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="detached-terminal">
+    <div class="detached-terminal-header">
+      <span class="terminal-title">💻 Terminal (отдельное окно)</span>
+      <select class="terminal-backend-select" id="detached-backend-select" title="Выбор AI-CLI"></select>
+      <span class="terminal-status" id="detached-status"></span>
+      <div style="flex: 1"></div>
+      <button type="button" class="terminal-btn" id="detached-restart" title="Перезапустить">↻</button>
+      <button type="button" class="terminal-btn" id="detached-clear" title="Очистить">🗑</button>
+    </div>
+    <div class="detached-terminal-body" id="detached-terminal-host"></div>
+    <div class="terminal-voice-bar">
+      <textarea
+        id="detached-voice-input"
+        class="terminal-voice-input"
+        rows="1"
+        placeholder="🎙 Поле для голосового ввода (Wispr Flow) — Enter отправит в AI-CLI"
+        autocomplete="off"
+        spellcheck="false"></textarea>
+      <button type="button" id="detached-voice-send" class="terminal-btn terminal-voice-send" title="Отправить (Enter)">➤</button>
+    </div>
+  </div>
+
+  <script src="/vendor/xterm/xterm/lib/xterm.js"></script>
+  <script src="/vendor/xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="/vendor/xterm/addon-web-links/lib/addon-web-links.js"></script>
+  <script>
+    (async function () {
+      if (typeof window.Terminal !== 'function' || !window.terminalAPI) {
+        document.body.innerHTML = '<div style="padding:20px">Terminal API недоступен</div>';
+        return;
+      }
+
+      const term = new window.Terminal({
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: 14,
+        cursorBlink: true,
+        convertEol: true,
+        scrollback: 5000,
+        theme: { background: '#0a0a14', foreground: '#d8dee9', cursor: '#ff6b00' }
+      });
+      const fit = window.FitAddon?.FitAddon ? new window.FitAddon.FitAddon() : null;
+      if (fit) term.loadAddon(fit);
+
+      const host = document.getElementById('detached-terminal-host');
+      term.open(host);
+      fit?.fit();
+      term.focus();
+
+      let sessionId = null;
+      const statusEl = document.getElementById('detached-status');
+      const setStatus = (t) => { statusEl.textContent = t || ''; };
+
+      const { backends, default: defaultId } = await window.terminalAPI.listBackends();
+      const select = document.getElementById('detached-backend-select');
+      backends.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.id; o.textContent = b.label;
+        if (b.id === defaultId) o.selected = true;
+        select.appendChild(o);
+      });
+
+      const spawn = async () => {
+        if (sessionId) { await window.terminalAPI.kill(sessionId); sessionId = null; }
+        term.clear();
+        setStatus(`Запускаю ${select.value}...`);
+        const res = await window.terminalAPI.spawn(select.value);
+        if (res.error) { setStatus(res.error); return; }
+        sessionId = res.sessionId;
+        setStatus(`${res.label} — pid ${res.pid}`);
+        term.write(`\x1b[36m=== ${res.label} запущен ===\x1b[0m\r\n`);
+      };
+
+      window.terminalAPI.onData(p => {
+        if (p.sessionId === sessionId) term.write(p.data);
+      });
+      window.terminalAPI.onExit(p => {
+        if (p.sessionId === sessionId) {
+          term.write(`\r\n\x1b[90m[сессия завершена, код ${p.code}]\x1b[0m\r\n`);
+          sessionId = null;
+        }
+      });
+
+      term.onData(d => {
+        if (sessionId) window.terminalAPI.write(sessionId, d);
+      });
+
+      select.addEventListener('change', spawn);
+      document.getElementById('detached-restart').addEventListener('click', spawn);
+      document.getElementById('detached-clear').addEventListener('click', () => term.clear());
+
+      // Голосовой ввод: диктуешь в textarea, Enter → в pty активной сессии
+      const voiceInput = document.getElementById('detached-voice-input');
+      const voiceSend = document.getElementById('detached-voice-send');
+      const sendVoice = () => {
+        const txt = voiceInput.value.trim();
+        if (!txt) return;
+        if (!sessionId) {
+          term.write('\r\n\x1b[33m[нет активной сессии]\x1b[0m\r\n');
+          return;
+        }
+        window.terminalAPI.write(sessionId, txt + '\r');
+        voiceInput.value = '';
+        voiceInput.style.height = '';
+      };
+      voiceSend.addEventListener('click', sendVoice);
+      voiceInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendVoice(); }
+      });
+      voiceInput.addEventListener('input', () => {
+        voiceInput.style.height = 'auto';
+        voiceInput.style.height = Math.min(90, voiceInput.scrollHeight) + 'px';
+      });
+
+      // Paste-handler на xterm textarea — если Wispr использует clipboard
+      if (term.textarea) {
+        term.textarea.addEventListener('paste', (e) => {
+          const text = e.clipboardData?.getData('text') || '';
+          if (text && sessionId) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.terminalAPI.write(sessionId, text);
+          }
+        });
+      }
+
+      window.addEventListener('resize', () => {
+        fit?.fit();
+        if (sessionId && window.terminalAPI.resize) {
+          window.terminalAPI.resize(sessionId, term.cols, term.rows);
+        }
+      });
+      window.addEventListener('beforeunload', () => {
+        if (sessionId) window.terminalAPI.kill(sessionId);
+      });
+
+      await spawn();
+    })();
+  </script>
+</body>
+</html>

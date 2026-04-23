@@ -1,6 +1,6 @@
 /**
  * Background module — loading and displaying backgrounds
- * Priority: custom/ > backgrounds/ > slides/
+ * Priority: custom/ > backgrounds/ > slides/ > screen capture
  */
 const Background = {
   assets: {},       // { partNumber: { type, element, url } }
@@ -12,13 +12,17 @@ const Background = {
    * Priority: custom_file > background_file > slide_file
    */
   resolveAsset(part, projectName) {
-    // 1. Custom user-uploaded file (highest priority, applies to any non-none type)
+    if (!part || part.layout === 'face_only') {
+      return null;
+    }
+
+    // 1. Custom user-uploaded file (highest priority)
     if (part.custom_file) {
       const url = API.getCustomUrl(projectName, part.custom_file);
       return { url, type: part.custom_type || 'photo', source: 'custom' };
     }
-    // 2. AI-generated background — only when the declared type is photo/video.
-    if ((part.background_type === 'photo' || part.background_type === 'video') && part.background_file) {
+    // 2. AI-generated background
+    if (part.background_file) {
       const url = API.getAssetUrl(projectName, part.background_file);
       const type = part.background_type === 'video' ? 'video' : 'photo';
       return { url, type, source: 'background' };
@@ -29,38 +33,35 @@ const Background = {
       const url = HtmlSlides.getSlideUrl(projectName, slideFile);
       return { url, type: 'photo', source: 'slide' };
     }
-    // 4. Live screen capture — no URL, handled via getStream() from ScreenCapture.
-    if (part.background_type === 'screen') {
-      return { url: null, type: 'screen', source: 'screen' };
+    // 4. User-selected browser display capture window.
+    if (part.background_type === 'screen_capture') {
+      return {
+        url: null,
+        type: 'screen_capture',
+        source: 'screen_capture',
+        projectName,
+        label: part.screen_capture_label || 'Shared window'
+      };
     }
     return null;
   },
 
-  async preloadAll(script, projectName) {
-    const promises = [];
-    const total = script.parts.filter(p => p.background_type !== 'none' && this.resolveAsset(p, projectName)).length;
-    let loaded = 0;
-    // Cache-busting stamp: forces the browser to refetch after file has been regenerated/swapped on disk.
-    const stamp = Date.now();
+  async preloadAll(script, projectName, options = {}) {
+    const bustSuffix = options.bust ? `v=${Date.now()}` : '';
+    const withBust = (url) => {
+      if (!url || !bustSuffix) return url;
+      return url + (url.includes('?') ? '&' : '?') + bustSuffix;
+    };
+    const previousAssets = this.assets || {};
+    const reusedScreenCaptureAssets = new Set();
     this.assets = {};
+    const promises = [];
+    const total = script.parts.filter(p => this.resolveAsset(p, projectName)).length;
+    let loaded = 0;
 
     for (const part of script.parts) {
-      if (part.background_type === 'none') continue;
-
       const resolved = this.resolveAsset(part, projectName);
       if (!resolved) continue;
-
-      // Screen capture: one shared <video> element across all parts with type=screen.
-      if (resolved.type === 'screen') {
-        const video = this._ensureScreenVideo();
-        this.assets[part.part_number] = { type: 'screen', element: video, source: 'screen' };
-        loaded++;
-        this.onProgress?.(loaded, total);
-        continue;
-      }
-
-      const sep = resolved.url.includes('?') ? '&' : '?';
-      resolved.url = `${resolved.url}${sep}v=${stamp}`;
 
       if (resolved.type === 'video') {
         const p = new Promise((resolve) => {
@@ -79,9 +80,23 @@ const Background = {
             console.warn(`Failed to load video for part ${part.part_number}`);
             resolve();
           };
-          video.src = resolved.url;
+          video.src = withBust(resolved.url);
         });
         promises.push(p);
+      } else if (resolved.type === 'screen_capture') {
+        const previousAsset = previousAssets[part.part_number];
+        if (
+          previousAsset?.type === 'screen_capture' &&
+          previousAsset.connected &&
+          previousAsset.projectName === projectName
+        ) {
+          this.assets[part.part_number] = previousAsset;
+          reusedScreenCaptureAssets.add(previousAsset);
+        } else {
+          this.assets[part.part_number] = this.createScreenCaptureAsset(part.part_number, resolved);
+        }
+        loaded++;
+        this.onProgress?.(loaded, total);
       } else {
         const p = new Promise((resolve) => {
           const img = new Image();
@@ -95,13 +110,266 @@ const Background = {
             console.warn(`Failed to load bg for part ${part.part_number}`);
             resolve();
           };
-          img.src = resolved.url;
+          img.src = withBust(resolved.url);
         });
         promises.push(p);
       }
     }
 
     await Promise.all(promises);
+
+    for (const asset of Object.values(previousAssets)) {
+      if (asset?.type === 'screen_capture' && !reusedScreenCaptureAssets.has(asset)) {
+        this.stopStream(asset.stream);
+      }
+    }
+  },
+
+  createScreenCaptureAsset(partNumber, resolved) {
+    return {
+      type: 'screen_capture',
+      element: null,
+      url: null,
+      source: resolved.source,
+      label: resolved.label || 'Shared window',
+      projectName: resolved.projectName || null,
+      stream: null,
+      connected: false,
+      lastError: null,
+      partNumber
+    };
+  },
+
+  getMediaDevices() {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      return navigator.mediaDevices;
+    }
+    if (typeof window !== 'undefined' && window.navigator?.mediaDevices) {
+      return window.navigator.mediaDevices;
+    }
+    return null;
+  },
+
+  isLoopbackHost(hostname) {
+    if (!hostname) return false;
+    const normalized = String(hostname).toLowerCase();
+    return normalized === 'localhost' ||
+      normalized === '::1' ||
+      normalized === '[::1]' ||
+      /^127(?:\.\d{1,3}){3}$/.test(normalized);
+  },
+
+  isScreenCaptureAllowedOrigin(locationLike, isSecureContext = null) {
+    if (isSecureContext === true) {
+      return true;
+    }
+
+    if (!locationLike) {
+      return true;
+    }
+
+    const protocol = locationLike.protocol || '';
+    const hostname = locationLike.hostname || '';
+
+    return protocol === 'https:' || (protocol === 'http:' && this.isLoopbackHost(hostname));
+  },
+
+  getScreenCaptureContextIssue(options = {}) {
+    const runtimeWindow = options.window || (typeof window !== 'undefined' ? window : null);
+    const runtimeDocument = options.document || (typeof document !== 'undefined' ? document : null);
+    const runtimeLocation = options.location || runtimeWindow?.location || null;
+    const isSecureContext = Object.prototype.hasOwnProperty.call(options, 'isSecureContext')
+      ? options.isSecureContext
+      : runtimeWindow?.isSecureContext;
+
+    if (!this.isScreenCaptureAllowedOrigin(runtimeLocation, isSecureContext)) {
+      return 'Screen capture is blocked because the studio is not running in a secure browser context. Open the studio on the Mac at http://localhost:3000 or http://127.0.0.1:3000, not through a LAN IP such as http://192.168.x.x:3000.';
+    }
+
+    if (runtimeDocument?.visibilityState === 'hidden') {
+      return 'Screen capture requires the studio tab to be visible and focused.';
+    }
+
+    return null;
+  },
+
+  explainScreenCaptureFailure(error) {
+    const message = error?.message || '';
+    const name = error?.name || '';
+    const wasBlocked = name === 'NotAllowedError' ||
+      /not allowed|permission|denied|disallowed/i.test(message);
+
+    if (wasBlocked) {
+      return new Error('Screen capture was blocked by the browser or macOS. Open the studio on the Mac at http://localhost:3000, not through a LAN IP; allow Screen & System Audio Recording for this browser in macOS Privacy & Security; restart the browser if macOS asks; then choose the window to share.');
+    }
+
+    return error instanceof Error ? error : new Error(message || 'Screen capture failed');
+  },
+
+  getScreenCaptureVideoConstraints(options = {}) {
+    return {
+      displaySurface: options.displaySurface || 'window',
+      frameRate: { ideal: options.frameRate || 60, max: options.maxFrameRate || 60 },
+      width: { ideal: options.width || 2160, max: options.maxWidth || 3840 },
+      height: { ideal: options.height || 3840, max: options.maxHeight || 3840 },
+      resizeMode: options.resizeMode || 'none'
+    };
+  },
+
+  async applyScreenCaptureTrackConstraints(tracks, constraints) {
+    for (const track of tracks) {
+      if (typeof track.applyConstraints !== 'function') {
+        continue;
+      }
+
+      try {
+        await track.applyConstraints(constraints);
+      } catch (error) {
+        console.warn('Could not force high-resolution screen capture constraints:', error);
+      }
+    }
+  },
+
+  getScreenCaptureTrackSettings(track) {
+    const settings = track?.getSettings?.() || {};
+    return {
+      width: settings.width || 0,
+      height: settings.height || 0,
+      frameRate: settings.frameRate || 0,
+      displaySurface: settings.displaySurface || '',
+      resizeMode: settings.resizeMode || ''
+    };
+  },
+
+  async connectScreenCapture(partNumber, options = {}) {
+    const contextIssue = this.getScreenCaptureContextIssue(options);
+    if (contextIssue) {
+      throw new Error(contextIssue);
+    }
+
+    const mediaDevices = options.mediaDevices || this.getMediaDevices();
+    if (!mediaDevices?.getDisplayMedia) {
+      throw new Error('Screen capture is not supported in this browser. Use a desktop browser that supports window sharing.');
+    }
+
+    let stream;
+    const videoConstraints = this.getScreenCaptureVideoConstraints(options);
+    try {
+      stream = await mediaDevices.getDisplayMedia({
+        video: videoConstraints,
+        audio: false
+      });
+    } catch (error) {
+      throw this.explainScreenCaptureFailure(error);
+    }
+
+    const tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+    if (!tracks.length) {
+      this.stopStream(stream);
+      throw new Error('No video track was provided by the selected screen source.');
+    }
+
+    await this.applyScreenCaptureTrackConstraints(tracks, videoConstraints);
+
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.autoplay = true;
+    video.srcObject = stream;
+
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const fail = () => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Screen capture preview could not start'));
+      };
+
+      video.onloadedmetadata = finish;
+      video.oncanplay = finish;
+      video.onerror = fail;
+
+      const playPromise = video.play?.();
+      if (playPromise?.then) {
+        playPromise.then(finish).catch(reject);
+      }
+    });
+
+    const existing = this.assets[partNumber];
+    if (existing?.stream) {
+      this.stopScreenCapture(partNumber);
+    }
+
+    const asset = {
+      ...(existing || {}),
+      type: 'screen_capture',
+      element: video,
+      url: null,
+      source: 'screen_capture',
+      label: existing?.label || options.label || 'Shared window',
+      projectName: options.projectName || existing?.projectName || null,
+      stream,
+      connected: true,
+      lastError: null,
+      captureSettings: this.getScreenCaptureTrackSettings(tracks[0]),
+      partNumber
+    };
+
+    console.info(
+      `Screen capture connected: ${asset.captureSettings.width}x${asset.captureSettings.height}` +
+      ` @ ${asset.captureSettings.frameRate || 'unknown'}fps` +
+      `${asset.captureSettings.resizeMode ? `, resizeMode=${asset.captureSettings.resizeMode}` : ''}`
+    );
+    if (asset.captureSettings.resizeMode && asset.captureSettings.resizeMode !== 'none') {
+      console.warn('Screen capture is being resized by the browser/OS before preview. This can make the preview image blurry.');
+    }
+
+    const markDisconnected = () => {
+      asset.connected = false;
+      asset.lastError = new Error('Screen capture source ended');
+    };
+
+    for (const track of tracks) {
+      track.addEventListener?.('ended', markDisconnected, { once: true });
+    }
+
+    this.assets[partNumber] = asset;
+    return asset;
+  },
+
+  stopStream(stream) {
+    if (!stream?.getTracks) return;
+    for (const track of stream.getTracks()) {
+      track.stop?.();
+    }
+  },
+
+  stopScreenCapture(partNumber) {
+    const asset = this.assets[partNumber];
+    if (!asset || asset.type !== 'screen_capture') {
+      return;
+    }
+
+    this.stopStream(asset.stream);
+    asset.stream = null;
+    asset.element = null;
+    asset.connected = false;
+  },
+
+  stopAllScreenCaptures() {
+    for (const partNumber of Object.keys(this.assets)) {
+      this.stopScreenCapture(partNumber);
+    }
+  },
+
+  isScreenCaptureConnected(partNumber) {
+    const asset = this.assets[partNumber];
+    return !!(asset && asset.type === 'screen_capture' && asset.connected && asset.element);
   },
 
   show(partNumber) {
@@ -114,6 +382,13 @@ const Background = {
 
     this.currentPart = partNumber;
     this.container.innerHTML = '';
+    this._stopScreenRAF();
+
+    // Отписка от прошлых изменений ScreenPan
+    if (this._screenPanUnsub) {
+      try { this._screenPanUnsub(); } catch (_) {}
+      this._screenPanUnsub = null;
+    }
 
     const asset = this.assets[partNumber];
     if (!asset) {
@@ -124,73 +399,46 @@ const Background = {
     this.container.style.background = 'none';
 
     if (asset.type === 'photo') {
+      if (typeof ScreenPan !== 'undefined') ScreenPan.setMode('contain');
       const img = asset.element.cloneNode();
       img.className = 'bg-media';
       this.container.appendChild(img);
-    } else if (asset.type === 'screen') {
-      const stream = (typeof ScreenCapture !== 'undefined') ? ScreenCapture.getStream() : null;
-      const video = this._ensureScreenVideo();
-      if (stream && stream.active) {
-        if (video.srcObject !== stream) {
-          video.srcObject = stream;
-          video.play().catch(() => {});
-        }
-        // Для screen используем canvas-рендер с pan/zoom (object-fit не справляется).
-        this._mountScreenCanvas();
-      } else {
-        this._stopScreenRAF();
-        this.container.style.background = '#1a1a2e';
-        const hint = document.createElement('div');
-        hint.className = 'bg-screen-placeholder';
-        hint.textContent = 'Нажми «Выбрать окно» в правой панели, чтобы начать захват экрана.';
-        this.container.appendChild(hint);
-      }
+      this._bindScreenPanToMedia(img);
     } else if (asset.type === 'video') {
+      if (typeof ScreenPan !== 'undefined') ScreenPan.setMode('contain');
       asset.element.className = 'bg-media';
       this.container.appendChild(asset.element);
       asset.element.currentTime = 0;
       asset.element.play().catch(() => {});
-    }
-  },
-
-  onProgress: null,
-
-  _screenVideo: null,
-
-  _ensureScreenVideo() {
-    if (!this._screenVideo) {
-      const v = document.createElement('video');
-      v.autoplay = true;
-      v.muted = true;
-      v.playsInline = true;
-      this._screenVideo = v;
-    }
-    return this._screenVideo;
-  },
-
-  /** Вызывается когда ScreenCapture stream получен/изменён. */
-  updateScreenStream() {
-    const stream = (typeof ScreenCapture !== 'undefined') ? ScreenCapture.getStream() : null;
-    const video = this._ensureScreenVideo();
-    if (stream && stream.active) {
-      if (video.srcObject !== stream) {
-        video.srcObject = stream;
-        video.play().catch(() => {});
+      this._bindScreenPanToMedia(asset.element);
+    } else if (asset.type === 'screen_capture') {
+      if (!asset.element || !asset.connected) {
+        this.container.style.background = '#1a1a2e';
+        return;
       }
-    } else {
-      video.srcObject = null;
-      this._stopScreenRAF();
+      if (typeof ScreenPan !== 'undefined') ScreenPan.setMode('cover');
+      // Рисуем через canvas+RAF с учётом ScreenPan (cover-fit + zoom/pan).
+      this._mountScreenCanvas(asset);
     }
+  },
+
+  _bindScreenPanToMedia(el) {
+    if (typeof ScreenPan === 'undefined') return;
+    ScreenPan._applyToMedia(el);
+    this._screenPanUnsub = ScreenPan.onChange(() => {
+      ScreenPan._applyToMedia(el);
+    });
   },
 
   _screenCanvas: null,
   _screenRAF: null,
+  _screenAsset: null,
 
-  _mountScreenCanvas() {
+  _mountScreenCanvas(asset) {
+    this._screenAsset = asset;
     if (!this._screenCanvas) {
       const c = document.createElement('canvas');
       c.className = 'bg-media';
-      // Canvas высокого разрешения — потом CSS растянет на 100% phone-frame.
       c.width = 1080;
       c.height = 1920;
       this._screenCanvas = c;
@@ -204,19 +452,25 @@ const Background = {
     const draw = () => {
       this._screenRAF = requestAnimationFrame(draw);
       const canvas = this._screenCanvas;
-      if (!canvas) return;
-      const video = this._ensureScreenVideo();
-      if (!video || video.readyState < 2) return;
-      const ctx = canvas.getContext('2d');
+      const asset = this._screenAsset;
+      if (!canvas || !asset || !asset.element) return;
+      const video = asset.element;
+      if (video.readyState < 2) return;
       const vw = video.videoWidth || 1920;
       const vh = video.videoHeight || 1080;
-      const pan = (typeof ScreenPan !== 'undefined') ? ScreenPan.computeCrop(vw, vh, canvas.width, canvas.height)
-                                                      : { sx: 0, sy: 0, sw: vw, sh: vh };
+      const ctx = canvas.getContext('2d');
+      const pan = (typeof ScreenPan !== 'undefined')
+        ? ScreenPan.computeCrop(vw, vh, canvas.width, canvas.height)
+        : null;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       try {
-        ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, canvas.width, canvas.height);
-      } catch (_) { /* frame not ready */ }
+        if (pan) {
+          ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, canvas.width, canvas.height);
+        } else {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
+      } catch (_) {}
     };
     this._screenRAF = requestAnimationFrame(draw);
   },
@@ -228,10 +482,9 @@ const Background = {
     }
   },
 
-  /** Публичный доступ для Canvas.drawBackground при записи. */
-  getScreenSource() {
-    const video = this._screenVideo;
-    if (video && video.readyState >= 2 && video.srcObject) return video;
-    return null;
-  }
+  onProgress: null
 };
+
+if (typeof module === 'object' && module.exports) {
+  module.exports = Background;
+}

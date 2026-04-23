@@ -28,7 +28,7 @@ const Camera = {
         deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
         width: { ideal: quality === '1080p' ? 1920 : 1280 },
         height: { ideal: quality === '1080p' ? 1080 : 720 },
-        frameRate: { ideal: 30 }
+        frameRate: { ideal: 60, max: 60 }
       },
       audio: {
         deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,

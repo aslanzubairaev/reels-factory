@@ -22,17 +22,6 @@
       "args": [],
       "install_hint": "npm install -g @openai/codex"
     },
-    "aider": {
-      "label": "Aider",
-      "description": "Универсальный AI-ассистент (поддерживает много моделей)",
-      "command": {
-        "win32": "aider.cmd",
-        "darwin": "aider",
-        "linux": "aider"
-      },
-      "args": [],
-      "install_hint": "pip install aider-chat"
-    },
     "shell": {
       "label": "Shell",
       "description": "Обычный терминал — набирай любую команду сам",
@@ -46,5 +35,5 @@
     }
   },
   "default": "claude",
-  "order": ["claude", "codex", "aider", "shell"]
+  "order": ["claude", "codex", "shell"]
 }

@@ -1,16 +1,25 @@
 /* Light Theme */
 :root {
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-card: #f0f0f5;
-  --bg-input: #ffffff;
-  --text-primary: #1a1a2e;
-  --text-secondary: #666680;
-  --accent: #5a52d5;
-  --accent-hover: #4a42c5;
-  --accent-glow: rgba(90, 82, 213, 0.2);
-  --danger: #e8414f;
-  --success: #26c46a;
-  --warning: #e69500;
-  --border: #d0d0e0;
+  --bg-primary: #f3ede3;
+  --bg-secondary: #fffaf3;
+  --bg-card: rgba(255, 250, 243, 0.9);
+  --bg-input: #fffdf9;
+  --bg-elevated: rgba(26, 33, 46, 0.04);
+  --bg-contrast: #e9dfcf;
+  --text-primary: #1c2734;
+  --text-secondary: #62707f;
+  --text-muted: #8d98a3;
+  --accent: #c66a1f;
+  --accent-hover: #d87c32;
+  --accent-soft: rgba(198, 106, 31, 0.11);
+  --accent-glow: rgba(198, 106, 31, 0.16);
+  --danger: #d6555a;
+  --success: #2ca36d;
+  --warning: #bf8519;
+  --border: rgba(28, 39, 52, 0.12);
+  --border-strong: rgba(28, 39, 52, 0.2);
+  --shadow-soft: 0 20px 40px rgba(71, 53, 25, 0.12);
+  --shadow-strong: 0 26px 60px rgba(71, 53, 25, 0.18);
+  --surface-highlight: rgba(69, 139, 191, 0.08);
+  --surface-warm: rgba(198, 106, 31, 0.08);
 }

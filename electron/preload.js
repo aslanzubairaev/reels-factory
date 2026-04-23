@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   // Обновить размер PTY (cols, rows)
   resize: (sessionId, cols, rows) => ipcRenderer.invoke('terminal:resize', sessionId, cols, rows),
 
+  // Открыть терминал в отдельном окне Electron
+  openDetached: () => ipcRenderer.invoke('terminal:open-detached'),
+
   // Подписка на stdout/stderr chunks — возвращает функцию-отписку
   onData: (handler) => {
     const listener = (_evt, payload) => handler(payload);

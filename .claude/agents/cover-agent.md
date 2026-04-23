@@ -9,7 +9,7 @@
 ## Вход
 - `projects/{name}/output/recording_full.mp4` — для извлечения кадров
 - `projects/{name}/output/cover_text.json` — текст обложки
-- `projects/{name}/output/analysis.json` — для выбора категории фото (`content_category`: `programming` / `productivity` / `ai` / `motivation` и т.д.)
+- `projects/{name}/02_script.json` — **`topic` поле** используется для выбора категории фото из библиотеки
 
 ## Выход (в `projects/{name}/output/`)
 - `cover_bg_generated.png` — фон без текста (Gemini)
@@ -44,13 +44,13 @@ python .claude/skills/generate-cover/extract_frames.py "projects/{name}/output/r
 
 **А) Кадр из видео** — показать 3 самых чётких кадра (`cover_candidates/frame_XX.png`).
 
-**Б) Фото из библиотеки** — автоматически предложить 3-5 фото из подходящей подпапки `assets/photos/` на основе `content_category` из `analysis.json`:
+**Б) Фото из библиотеки** — автоматически предложить 3-5 фото из подходящей подпапки `assets/photos/`. Определи категорию по `topic` из `02_script.json` (совпадение по ключевым словам):
 
-| content_category | Папка по умолчанию |
+| Ключевые слова в topic | Папка по умолчанию |
 |---|---|
-| `programming`, `ai`, `automation`, `tools` | `assets/photos/work/` |
-| `motivation`, `productivity` | `assets/photos/portrait/` |
-| Любые lifestyle-темы (путешествия, дисциплина в жизни) | `assets/photos/lifestyle/` |
+| код / программирование / AI / автоматизация / инструменты / Claude / дебаг | `assets/photos/work/` |
+| продуктивность / мотивация / привычки / утро / дисциплина | `assets/photos/portrait/` |
+| остальное (путешествия, lifestyle, быт) | `assets/photos/lifestyle/` |
 
 Если пользователь просит «покажи другую папку» — покажи всё содержимое указанной папки.
 

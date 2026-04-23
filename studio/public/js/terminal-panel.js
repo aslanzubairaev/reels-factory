@@ -74,6 +74,18 @@
       // Клик по контейнеру → фокус на terminal (чтобы принимал ввод)
       container.addEventListener('click', () => this.term?.focus());
 
+      // Голосовой ввод (Wispr Flow и подобные): перехват paste → в pty.
+      if (this.term.textarea) {
+        this.term.textarea.addEventListener('paste', (e) => {
+          const text = e.clipboardData?.getData('text') || '';
+          if (text && this.sessionId && window.terminalAPI) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.terminalAPI.write(this.sessionId, text);
+          }
+        });
+      }
+
       // Пользовательский ввод → stdin процесса
       this.term.onData((data) => {
         if (this.sessionId && window.terminalAPI) {

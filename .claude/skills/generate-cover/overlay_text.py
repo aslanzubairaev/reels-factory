@@ -16,10 +16,12 @@
 Цвета:
 - LINE1: белый #FFFFFF
 - LINE2: оранжевый #FF6B00
-- Плюс оранжевое подчёркивание под LINE2 (как в cover_example_text.png).
 
-Обводка:
-- Чёрная 5px, мягкая тень 8px — читаемо на любом фоне.
+Типографика:
+- Тонкая чёрная обводка 3px — читаемо на любом фоне без «перегруза».
+- Мягкая тень с плавным затуханием — глубина без контрастных чёрных краёв.
+- БЕЗ подчёркивания — пользователю не нравилось, чище без него.
+- Лёгкий letter-spacing (+6px) — типографически воздушнее.
 """
 
 import sys
@@ -34,14 +36,15 @@ W, H = 1080, 1920
 CENTER_X = 500  # чуть левее геометрического центра (540) — safe zone справа 162px
 
 # Позиции текста (нижняя треть, но выше нижней safe zone 380px)
-LINE1_Y_CENTER = 1450   # главный текст
-LINE2_Y_CENTER = 1560   # подзаголовок
-UNDERLINE_Y = 1600      # оранжевая черта под подзаголовком
+LINE1_Y_CENTER = 1440   # главный текст
+LINE2_Y_CENTER = 1580   # подзаголовок — больше gap для воздуха (140 vs прежних 110)
+
+LETTER_SPACING = 6  # дополнительный tracking между буквами
 
 COLOR_WHITE = (255, 255, 255, 255)
 COLOR_ORANGE = (255, 107, 0, 255)
 COLOR_OUTLINE = (0, 0, 0, 255)
-COLOR_SHADOW = (0, 0, 0, 170)
+COLOR_SHADOW = (0, 0, 0, 140)
 
 
 def _find_font(has_cyrillic, size):
@@ -69,19 +72,51 @@ def _find_font(has_cyrillic, size):
     return ImageFont.load_default(), None
 
 
-def _draw_text_with_effects(draw, text, font, xy, fill_color):
-    """Рисует текст с мягкой тенью + чёрной обводкой + заливкой."""
+def _measure_text_tracked(draw, text, font, tracking):
+    """Ширина строки с учётом letter-spacing (tracking между буквами)."""
+    if not text:
+        return 0, 0
+    total_w = 0
+    max_h = 0
+    for i, ch in enumerate(text):
+        bbox = draw.textbbox((0, 0), ch, font=font)
+        cw = bbox[2] - bbox[0]
+        ch_h = bbox[3] - bbox[1]
+        total_w += cw
+        if i < len(text) - 1:
+            total_w += tracking
+        if ch_h > max_h:
+            max_h = ch_h
+    return total_w, max_h
+
+
+def _draw_text_tracked(draw, text, font, xy, fill_color, tracking=LETTER_SPACING):
+    """
+    Рисует текст с lettering:
+      - мягкая «blur-like» тень (несколько слоёв затухающих копий)
+      - тонкая чёрная обводка 3px (контраст без перегруза)
+      - letter-spacing между буквами — типографически чище
+    """
     x, y = xy
-    # Мягкая тень (offset вниз-вправо)
-    for dx, dy in [(3, 5), (4, 6), (5, 7)]:
-        draw.text((x + dx, y + dy), text, font=font, fill=COLOR_SHADOW)
-    # Чёрная обводка (толщина 5)
-    for dx in range(-5, 6):
-        for dy in range(-5, 6):
-            if dx * dx + dy * dy <= 25:
-                draw.text((x + dx, y + dy), text, font=font, fill=COLOR_OUTLINE)
-    # Основной цвет
-    draw.text((x, y), text, font=font, fill=fill_color)
+    cursor = x
+    for ch in text:
+        bbox = draw.textbbox((0, 0), ch, font=font)
+        cw = bbox[2] - bbox[0]
+
+        # Многослойная мягкая тень — плавное затухание вместо жёсткого блока
+        for (dx, dy, alpha) in [(2, 3, 140), (4, 6, 100), (6, 9, 60), (8, 12, 30)]:
+            draw.text((cursor + dx, y + dy), ch, font=font, fill=(0, 0, 0, alpha))
+
+        # Тонкая чёрная обводка — ровно по окружности радиуса 3
+        for dx in range(-3, 4):
+            for dy in range(-3, 4):
+                if dx * dx + dy * dy <= 9 and (dx or dy):
+                    draw.text((cursor + dx, y + dy), ch, font=font, fill=COLOR_OUTLINE)
+
+        # Основной цвет
+        draw.text((cursor, y), ch, font=font, fill=fill_color)
+
+        cursor += cw + tracking
 
 
 def overlay_text(bg_path, cover_text, output_dir):
@@ -100,49 +135,38 @@ def overlay_text(bg_path, cover_text, output_dir):
     all_text = " ".join([line1, line2])
     has_cyrillic = any("а" <= ch.lower() <= "я" or ch.lower() == "ё" for ch in all_text)
 
-    # Размеры шрифтов. Line1 крупнее — это главный заголовок.
-    font_line1, font_path = _find_font(has_cyrillic, 105)
-    font_line2, _ = _find_font(has_cyrillic, 70)
+    font_line1, font_path = _find_font(has_cyrillic, 98)
+    font_line2, _ = _find_font(has_cyrillic, 78)
     if font_path:
         print(f"Шрифт: {os.path.basename(font_path)}")
 
-    # Автосжатие line1, если не влезает в ~880px (1080 - отступы).
+    # Автосжатие line1 с учётом letter-spacing, до ~880px.
     MAX_TEXT_WIDTH = 880
-    for size in (105, 95, 85, 78):
+    for size in (98, 90, 82, 74, 66):
         font_line1, _ = _find_font(has_cyrillic, size)
-        bbox = draw.textbbox((0, 0), line1, font=font_line1)
-        if (bbox[2] - bbox[0]) <= MAX_TEXT_WIDTH:
+        w1, _ = _measure_text_tracked(draw, line1, font_line1, LETTER_SPACING)
+        if w1 <= MAX_TEXT_WIDTH:
             break
 
-    # Line 1: белый, центр по горизонтали (относительно CENTER_X), y=LINE1_Y_CENTER
+    # Line 1: белый
     if line1:
-        bbox = draw.textbbox((0, 0), line1, font=font_line1)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
+        tw, th = _measure_text_tracked(draw, line1, font_line1, LETTER_SPACING)
         x = CENTER_X - tw // 2
         y = LINE1_Y_CENTER - th // 2
-        _draw_text_with_effects(draw, line1, font_line1, (x, y), COLOR_WHITE)
+        _draw_text_tracked(draw, line1, font_line1, (x, y), COLOR_WHITE)
 
     # Line 2: оранжевый. Автосжатие до 820px.
     if line2:
-        for size in (70, 62, 54, 48):
+        for size in (78, 70, 62, 54):
             font_line2, _ = _find_font(has_cyrillic, size)
-            bbox = draw.textbbox((0, 0), line2, font=font_line2)
-            if (bbox[2] - bbox[0]) <= 820:
+            w2, _ = _measure_text_tracked(draw, line2, font_line2, LETTER_SPACING)
+            if w2 <= 820:
                 break
 
-        bbox = draw.textbbox((0, 0), line2, font=font_line2)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
+        tw, th = _measure_text_tracked(draw, line2, font_line2, LETTER_SPACING)
         x = CENTER_X - tw // 2
         y = LINE2_Y_CENTER - th // 2
-        _draw_text_with_effects(draw, line2, font_line2, (x, y), COLOR_ORANGE)
-
-        # Оранжевая подчёркивающая черта под line2 — акцент как в брендовом примере.
-        underline_width = min(tw + 40, 700)
-        ux = CENTER_X - underline_width // 2
-        uy = UNDERLINE_Y
-        draw.rectangle([ux, uy, ux + underline_width, uy + 6], fill=COLOR_ORANGE)
+        _draw_text_tracked(draw, line2, font_line2, (x, y), COLOR_ORANGE)
 
     # Композит и сохранение в lossless PNG.
     result = Image.alpha_composite(img, txt_layer).convert("RGB")

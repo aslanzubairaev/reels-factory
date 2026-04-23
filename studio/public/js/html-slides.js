@@ -65,7 +65,7 @@ const HtmlSlides = {
     if (part.claim) {
       const claimEl = document.createElement('div');
       claimEl.className = 'slide-claim';
-      claimEl.textContent = 'Claim: ' + part.claim;
+      claimEl.innerHTML = `<strong>Claim:</strong> ${part.claim}`;
       container.appendChild(claimEl);
     }
 
@@ -94,25 +94,10 @@ const HtmlSlides = {
         part.slide_data = newData;
         if (onRegenerate) onRegenerate(newData);
       } catch (e) {
-        const useAi = confirm(
-          'В поле «Данные слайда» ждётся JSON, а не свободный текст.\n\n' +
-          'Хочешь, AI сам заполнит данные по тексту твоей фразы?'
-        );
-        if (useAi && typeof App !== 'undefined' && App.aiFillSlideData) {
-          App.aiFillSlideData();
-        }
+        alert('Некорректный JSON: ' + e.message);
       }
     });
     btnRow.appendChild(regenBtn);
-
-    const aiBtn = document.createElement('button');
-    aiBtn.className = 'btn btn-secondary btn-sm';
-    aiBtn.textContent = 'AI по тексту';
-    aiBtn.title = 'Заполнить данные слайда на основе текста части';
-    aiBtn.addEventListener('click', () => {
-      if (typeof App !== 'undefined' && App.aiFillSlideData) App.aiFillSlideData();
-    });
-    btnRow.appendChild(aiBtn);
     container.appendChild(btnRow);
 
     return container;

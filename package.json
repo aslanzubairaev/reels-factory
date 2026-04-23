@@ -41,12 +41,6 @@
       "utils/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": ".env",
-        "to": ".env"
-      }
-    ],
     "win": {
       "target": [
         {

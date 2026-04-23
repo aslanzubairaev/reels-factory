@@ -1,3 +1,44 @@
 {
-  "projects": []
+  "projects": [
+    {
+      "name": "2026-04-22_studio-project-2",
+      "date": "2026-04-22",
+      "idea": "",
+      "language": "ru",
+      "parts_count": 2,
+      "total_duration": 0,
+      "source_mode": "studio",
+      "status": "completed"
+    },
+    {
+      "name": "2026-04-22_studio-project",
+      "date": "2026-04-22",
+      "idea": "",
+      "language": "ru",
+      "parts_count": 1,
+      "total_duration": 0,
+      "source_mode": "studio",
+      "status": "completed"
+    },
+    {
+      "name": "2026-04-22_pravilo-2-minut",
+      "date": "2026-04-22",
+      "idea": "Правило 2 минут, которое сломало мне прокрастинацию — УТВЕРЖДЕНО",
+      "language": "ru",
+      "parts_count": 6,
+      "total_duration": 0,
+      "source_mode": "classic",
+      "status": "completed"
+    },
+    {
+      "name": "2026-04-23_5am-mif",
+      "date": "2026-04-23",
+      "idea": "Идея 2: «5 утра — это ложь. Вот что реально меняет день» — УТВЕРЖДЕНО",
+      "language": "ru",
+      "parts_count": 6,
+      "total_duration": 62,
+      "source_mode": "classic",
+      "status": "completed"
+    }
+  ]
 }
