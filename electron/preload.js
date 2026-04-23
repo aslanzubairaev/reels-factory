@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   // Открыть терминал в отдельном окне Electron
   openDetached: () => ipcRenderer.invoke('terminal:open-detached'),
 
+  // Сохранить вставленное изображение во временный файл.
+  // arg: ArrayBuffer (байты png/jpeg/webp/gif/bmp), ext: строка-расширение.
+  // Возвращает { path } или { error }.
+  savePastedImage: (arrayBuffer, ext) =>
+    ipcRenderer.invoke('terminal:save-pasted-image', arrayBuffer, ext),
+
   // Подписка на stdout/stderr chunks — возвращает функцию-отписку
   onData: (handler) => {
     const listener = (_evt, payload) => handler(payload);

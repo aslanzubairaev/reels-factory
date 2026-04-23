@@ -68,8 +68,412 @@ body::after {
   display: none !important;
 }
 
-.studio-compat-control {
-  display: none !important;
+/* === Auto-stop by silence toggle === */
+.auto-stop-panel {
+  padding: 12px 18px;
+}
+.auto-stop-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.auto-stop-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.auto-stop-toggle-track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.auto-stop-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: left 0.2s, background 0.2s;
+}
+.auto-stop-toggle input:checked + .auto-stop-toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.auto-stop-toggle input:checked + .auto-stop-toggle-track .auto-stop-toggle-thumb {
+  left: 20px;
+  background: white;
+}
+.auto-stop-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.auto-stop-toggle-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.auto-stop-toggle-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.auto-stop-toggle.is-active .auto-stop-toggle-hint {
+  color: var(--warning);
+}
+
+/* === Hotkeys Help Overlay ===
+   Фулл-скрин оверлей с таблицей хоткеев. Вызов — '?' или '/'. */
+.hotkeys-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-contrast) 72%, transparent);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+.hotkeys-help-card {
+  width: min(560px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 26px 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-strong);
+}
+.hotkeys-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.hotkeys-help-head h2 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.hotkeys-help-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+}
+.hotkeys-help-close:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.hotkeys-help-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 18px;
+}
+.hotkeys-help-list kbd {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-contrast);
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2);
+  white-space: nowrap;
+}
+.hotkeys-help-list .hotkey-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hotkeys-help-foot {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.hotkeys-help-foot kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-contrast);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+/* === Take Manager ===
+   Карточки дублей: каждая — превью + инфа + действия. «Лучший» выделен
+   оранжевой рамкой и оранжевой звездой. Hover — лёгкое приподнятие. */
+.takes-panel {
+  padding: 14px 18px;
+}
+.takes-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.takes-panel-head h3 {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.takes-panel-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.takes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.take-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+}
+.take-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+.take-card.is-best {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+.take-card-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-contrast) center/cover no-repeat;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.take-card-num {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  background: color-mix(in srgb, var(--bg-contrast) 85%, transparent);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.take-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.take-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.take-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.take-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.take-card-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.take-card-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.take-card-btn.is-best-on {
+  background: var(--accent);
+  color: #16110b;
+  border-color: var(--accent);
+}
+.take-card-btn.is-danger:hover {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+.takes-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+}
+
+/* === Audio Level Meter ===
+   Горизонтальная полоска уровня микрофона. Две «пилюли»:
+   fill — текущая RMS-громкость (заливается в реальном времени),
+   peak — пиковый указатель (держится ~0.8s и плавно падает).
+   Маркеры warn (-12dB) и peak (-3dB) помогают визуально контролировать
+   громкость: до warn — безопасно, warn→peak — на грани клиппинга,
+   после peak — клиппинг. */
+.audio-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  user-select: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.audio-meter-icon {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.85;
+}
+.audio-meter-bar {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  min-width: 120px;
+  background: var(--bg-input);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.audio-meter-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--success) 0%, var(--success) 70%, var(--warning) 85%, var(--danger) 100%);
+  border-radius: var(--radius-pill);
+  transition: width 60ms linear, opacity 0.2s;
+}
+.audio-meter-peak {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 0%;
+  width: 3px;
+  background: color-mix(in srgb, var(--text-primary) 85%, transparent);
+  border-radius: 2px;
+  transition: left 0.1s ease-out;
+  opacity: 0;
+}
+.audio-meter.is-active .audio-meter-peak {
+  opacity: 0.85;
+}
+.audio-meter-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
+  pointer-events: none;
+}
+.audio-meter-mark-warn { left: 75%; }
+.audio-meter-mark-peak { left: 92%; }
+.audio-meter-hint {
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.audio-meter.is-silent .audio-meter-icon { opacity: 0.35; }
+.audio-meter.is-clipping {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.audio-meter.is-clipping .audio-meter-icon {
+  animation: audio-meter-clip 0.4s ease-in-out infinite alternate;
+}
+@keyframes audio-meter-clip {
+  from { transform: scale(1); }
+  to { transform: scale(1.2); }
+}
+/* Компактный вариант для recording-экрана — без подписи справа */
+.audio-meter-compact .audio-meter-bar { min-width: 80px; }
+
+/* Плавающий спиннер: показывается поверх всего при загрузке/генерации фона.
+   Виден посередине экрана, с подписью. */
+.generate-spinner-floating {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: color-mix(in srgb, var(--bg-contrast) 70%, transparent);
+  backdrop-filter: blur(6px);
+  pointer-events: all;
+}
+.generate-spinner-ring {
+  width: 54px;
+  height: 54px;
+  border: 4px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: generate-spin 0.9s linear infinite;
+}
+.generate-spinner-label {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@keyframes generate-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* === Settings Screen === */
@@ -623,9 +1027,67 @@ body::after {
 
 .builder-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.builder-header-left {
+  min-width: 0;
+}
+
+/* Индикатор автосохранения: маленький pill-бейдж с точкой и текстом.
+   Состояния: idle (серый), saving (amber с пульсацией), saved (зелёный),
+   error (красный). */
+.builder-save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  user-select: none;
+}
+.builder-save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  transition: background 0.2s;
+}
+.builder-save-indicator[data-state="idle"] {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.builder-save-indicator[data-state="saved"] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  background: color-mix(in srgb, var(--success) 10%, var(--bg-elevated));
+}
+.builder-save-indicator[data-state="saving"] {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-elevated));
+}
+.builder-save-indicator[data-state="saving"] .builder-save-dot {
+  animation: save-indicator-pulse 1s ease-in-out infinite;
+}
+.builder-save-indicator[data-state="error"] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elevated));
+}
+@keyframes save-indicator-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
 }
 
 .builder-workspace {
@@ -994,20 +1456,6 @@ body::after {
   border-color: rgba(255, 165, 2, 0.35);
 }
 
-.builder-validation-output {
-  margin: 0;
-  padding: 16px;
-  border-radius: calc(var(--radius-sm) + 2px);
-  border: 1px solid var(--border);
-  background: var(--bg-contrast);
-  color: var(--text-secondary);
-  font-size: 12px;
-  white-space: pre-wrap;
-  line-height: 1.45;
-  max-height: 200px;
-  overflow: auto;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-}
 
 .builder-textarea.invalid {
   border-color: var(--danger);
@@ -1771,14 +2219,6 @@ body::after {
   flex-wrap: wrap;
 }
 
-.generate-spinner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
 .spinner-small {
   width: 16px;
   height: 16px;
@@ -1831,10 +2271,9 @@ body::after {
 
 .preview-recording-panel {
   width: min(100%, 390px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
   padding: 10px;
   border-radius: calc(var(--radius-sm) + 2px);
 }
@@ -1842,8 +2281,18 @@ body::after {
 .preview-recording-status-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.preview-recording-status-row > .preview-recording-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.preview-recording-status-row > .preview-recording-timer {
+  margin-left: auto;
 }
 
 .preview-recording-dot {
@@ -1887,14 +2336,17 @@ body::after {
 }
 
 .preview-recording-actions {
-  display: grid;
-  grid-template-columns: auto auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
 }
 
 .preview-recording-actions .btn {
+  flex: 1 1 140px;
   min-height: 36px;
   padding: 8px 12px;
+  text-align: center;
 }
 
 .recording-readiness {
@@ -2698,9 +3150,12 @@ body::after {
     flex-direction: column;
   }
 
-  .recording-readiness,
-  .preview-recording-actions {
+  .recording-readiness {
     grid-template-columns: 1fr;
+  }
+
+  .preview-recording-actions .btn {
+    flex-basis: 100%;
   }
 
   .phone-frame {
@@ -2792,10 +3247,46 @@ body::after {
 }
 .terminal-btn:hover { background: #2a2a3a; border-color: #3a3a4a; }
 .terminal-btn.terminal-close:hover { background: #4a1a1a; border-color: #ff5555; }
+.terminal-btn.terminal-voice-toggle.is-active {
+  background: rgba(255, 107, 0, 0.22);
+  border-color: var(--accent);
+}
 
-.terminal-host { flex: 1; padding: 8px; overflow: hidden; }
+.terminal-host { flex: 1; padding: 8px; overflow: hidden; position: relative; }
 .terminal-host .xterm, .terminal-host .xterm-viewport, .terminal-host .xterm-screen {
   height: 100% !important; width: 100% !important;
+}
+/* Подсветка при drag-n-drop файла на терминал */
+.terminal-host.terminal-drop-hover {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.terminal-host.terminal-drop-hover::after {
+  content: '📎 Отпусти — путь файла появится в терминале';
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.75);
+  color: var(--accent);
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* Wispr Flow и другие voice-to-text сканируют DOM и часто не видят
+   скрытую 1x1 xterm-textarea как настоящее поле ввода. Растягиваем её
+   до размера строки (невидимо для глаз, но заметно для DOM-сканеров):
+   opacity:0 прячет курсор/текст, pointer-events:none возвращает клики
+   в xterm canvas (выделение, копирование работают как раньше). */
+.terminal-host .xterm-helper-textarea,
+.detached-terminal-body .xterm-helper-textarea {
+  width: 320px !important;
+  height: 24px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Голосовой ввод (Wispr Flow и подобные voice-to-text) */
@@ -2958,6 +3449,75 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
 .safe-zones-toggle-btn.active {
   background: rgba(255, 107, 0, 0.3);
   border-color: #ff6b00;
+}
+
+/* Кнопка сетки правила третей: стоит под safe-zones-toggle-btn в том же
+   правом верхнем углу телефонного превью. */
+.grid-toggle-btn {
+  position: absolute;
+  top: 40px; right: 8px;
+  z-index: 200;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.grid-toggle-btn.active {
+  background: rgba(126, 212, 255, 0.25);
+  border-color: #7ed4ff;
+}
+
+/* Сетка 3×3 — две горизонтальные и две вертикальные линии по 1/3 и 2/3.
+   По-умолчанию скрыта. Появляется когда родитель (.phone-frame или
+   .rec-canvas-wrapper) имеет класс .show-grid. */
+.rule-of-thirds-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+  display: none;
+}
+.phone-frame.show-grid .rule-of-thirds-grid,
+.rec-canvas-wrapper.show-grid .rule-of-thirds-grid {
+  display: block;
+}
+.rule-of-thirds-grid::before,
+.rule-of-thirds-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* Горизонтальные линии 33% и 66% */
+.rule-of-thirds-grid::before {
+  background:
+    linear-gradient(to bottom,
+      transparent 0,
+      transparent calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% + 0px),
+      transparent calc(33.333% + 0px),
+      transparent calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% + 0px),
+      transparent calc(66.666% + 0px));
+}
+/* Вертикальные линии 33% и 66% */
+.rule-of-thirds-grid::after {
+  background:
+    linear-gradient(to right,
+      transparent 0,
+      transparent calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% + 0px),
+      transparent calc(33.333% + 0px),
+      transparent calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% + 0px),
+      transparent calc(66.666% + 0px));
 }
 
 /* === Mirror camera button === */
@@ -3227,10 +3787,14 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
 .output-file-actions .btn { flex: 1; text-align: center; font-size: 11px; padding: 4px 6px; }
 
 /* === Overlay-телепромптер поверх phone-frame (альтернатива панели справа) === */
+/* Текст читается поверх safe-zones и сетки, но справа освобождаем место под
+   кнопки «Зоны IG» и «Сетка» (они висят в правом верхнем углу phone-frame,
+   z-index 200). z-index overlay поднят выше кнопок чтобы текст всегда был
+   поверх — сам overlay с pointer-events:none, кнопки остаются кликабельны. */
 .teleprompter-overlay {
   position: absolute;
-  left: 16px; right: 16px;
-  z-index: 55;
+  left: 16px; right: 104px;
+  z-index: 210;
   padding: 12px 14px;
   background: rgba(0, 0, 0, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -3255,6 +3819,11 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
   overflow-y: auto;
   pointer-events: auto;
   word-break: break-word;
+  cursor: text;
+}
+.teleprompter-overlay-text:hover {
+  background: rgba(255, 107, 0, 0.08);
+  border-radius: 6px;
 }
 /* Позиция "сверху телефона" — под шапкой Instagram */
 .teleprompter-overlay.teleprompter-overlay-top {

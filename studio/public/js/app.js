@@ -20,7 +20,6 @@ const App = {
     builderMeta: null,
     builderSelectedPartIndex: 0,
     builderDirty: false,
-    builderValidationOutput: '',
     builderSlideDrafts: {},
     builderDeletedPartUndo: null,
     studioPreferences: null,
@@ -96,8 +95,8 @@ const App = {
       builderProjectMeta: document.getElementById('builder-project-meta'),
       builderStatus: document.getElementById('builder-status'),
       builderAddPartBtn: document.getElementById('builder-add-part-btn'),
-      builderSaveBtn: document.getElementById('builder-save-btn'),
-      builderValidateBtn: document.getElementById('builder-validate-btn'),
+      builderSaveIndicator: document.getElementById('builder-save-indicator'),
+      builderSaveIndicatorText: document.querySelector('#builder-save-indicator .builder-save-text'),
       builderPartsList: document.getElementById('builder-parts-list'),
       builderEditorEmpty: document.getElementById('builder-editor-empty'),
       builderEditorFields: document.getElementById('builder-editor-fields'),
@@ -125,7 +124,6 @@ const App = {
       builderSlideCategorySelect: document.getElementById('builder-slide-category-select'),
       builderSlideDataGroup: document.getElementById('builder-slide-data-group'),
       builderSlideDataInput: document.getElementById('builder-slide-data-input'),
-      builderValidationOutput: document.getElementById('builder-validation-output'),
       cameraSelect: document.getElementById('camera-select'),
       micSelect: document.getElementById('mic-select'),
       qualitySelect: document.getElementById('quality-select'),
@@ -139,9 +137,8 @@ const App = {
       cameraVideo: document.getElementById('camera-video'),
       cameraResize: document.getElementById('camera-resize-handle'),
 
-      partInfo: document.getElementById('part-info'),
-      layoutBadge: document.getElementById('layout-badge'),
       teleprompterText: document.getElementById('teleprompter-text'),
+      teleprompterOverlayText: document.getElementById('preview-teleprompter-overlay-text'),
       editScriptBtn: document.getElementById('edit-script-btn'),
       teleprompterEditor: document.getElementById('teleprompter-editor'),
       teleprompterEditorInput: document.getElementById('teleprompter-editor-input'),
@@ -151,12 +148,8 @@ const App = {
       teleprompterEditHint: document.getElementById('teleprompter-edit-hint'),
       timingInfo: document.getElementById('timing-info'),
       bgPrompt: document.getElementById('bg-prompt'),
-      bgPanelTitle: document.getElementById('bg-panel-title'),
-      bgPanelNote: document.getElementById('bg-panel-note'),
       previewPartRail: document.getElementById('preview-part-rail'),
       exitStudioBtn: document.getElementById('exit-studio-btn'),
-      prevBtn: document.getElementById('prev-btn'),
-      nextBtn: document.getElementById('next-btn'),
       recordBtn: document.getElementById('start-recording-btn'),
       previewRecordingDot: document.getElementById('preview-recording-dot'),
       previewRecordingStatus: document.getElementById('preview-recording-status'),
@@ -186,8 +179,6 @@ const App = {
       recStartBtn: document.getElementById('rec-start-btn'),
       recStopBtn: document.getElementById('rec-stop-btn'),
       recRerecordBtn: document.getElementById('rec-rerecord-btn'),
-      recPrevBtn: document.getElementById('rec-prev-btn'),
-      recNextBtn: document.getElementById('rec-next-btn'),
       recBackBtn: document.getElementById('rec-back-btn'),
       recIndicator: document.getElementById('rec-indicator'),
 
@@ -231,6 +222,43 @@ const App = {
     bindSafeZonesToggle('safe-zones-toggle');
     bindSafeZonesToggle('rec-safe-zones-toggle');
 
+    // Rule-of-thirds сетка: toggle добавляет класс .show-grid на phone-frame
+    // (preview) и rec-canvas-wrapper (recording). Персистим в localStorage,
+    // чтобы состояние запоминалось между сессиями.
+    const applyGridState = (on) => {
+      document.querySelectorAll('.phone-frame, .rec-canvas-wrapper').forEach((el) => {
+        el.classList.toggle('show-grid', on);
+      });
+      document.querySelectorAll('.grid-toggle-btn').forEach((btn) => {
+        btn.classList.toggle('active', on);
+      });
+    };
+    const savedGrid = localStorage.getItem('studio.gridVisible') === '1';
+    applyGridState(savedGrid);
+    const bindGridToggle = (btnId) => {
+      const btn = document.getElementById(btnId);
+      btn?.addEventListener('click', () => {
+        const currentlyOn = document.querySelector('.phone-frame.show-grid, .rec-canvas-wrapper.show-grid');
+        const next = !currentlyOn;
+        applyGridState(next);
+        localStorage.setItem('studio.gridVisible', next ? '1' : '0');
+      });
+    };
+    bindGridToggle('grid-toggle');
+    bindGridToggle('rec-grid-toggle');
+
+    // Auto-stop by silence: checkbox + persist в localStorage.
+    // Реальное отслеживание тишины — внутри audio-meter RAF loop.
+    const autoStopToggle = document.getElementById('auto-stop-toggle');
+    if (autoStopToggle) {
+      autoStopToggle.checked = localStorage.getItem('studio.autoStopSilence') === '1';
+      autoStopToggle.addEventListener('change', () => {
+        localStorage.setItem('studio.autoStopSilence', autoStopToggle.checked ? '1' : '0');
+        // сброс счётчика тишины при переключении
+        this._silenceStartedAt = null;
+      });
+    }
+
     // File browser (правая панель): обновить список + открыть папку в Проводнике
     document.getElementById('output-refresh-btn')?.addEventListener('click', () => this.refreshOutputFiles());
     document.getElementById('output-open-folder-btn')?.addEventListener('click', async () => {
@@ -261,8 +289,6 @@ const App = {
     this.elements.backToProjectsBtn?.addEventListener('click', () => this.returnToProjectPicker());
     this.elements.projectSelect?.addEventListener('change', () => this.handleProjectSelectionChange());
     this.elements.builderAddPartBtn?.addEventListener('click', () => this.addBuilderPart());
-    this.elements.builderSaveBtn?.addEventListener('click', () => this.saveBuilderProject());
-    this.elements.builderValidateBtn?.addEventListener('click', () => this.validateBuilderProject());
     this.elements.builderDeletePartBtn?.addEventListener('click', () => this.deleteSelectedBuilderPart());
     this.elements.builderTextInput?.addEventListener('input', (e) => this.updateSelectedBuilderPart('text', e.target.value));
     this.elements.builderLayoutSelect?.addEventListener('change', (e) => this.updateSelectedBuilderPart('layout', e.target.value));
@@ -274,8 +300,6 @@ const App = {
     this.elements.builderUseScreenCaptureBtn?.addEventListener('click', () => this.useBuilderScreenCapture());
     this.elements.builderConnectScreenCaptureBtn?.addEventListener('click', () => this.connectBuilderScreenCapture());
     this.elements.builderRemoveUploadBtn?.addEventListener('click', () => this.removeBuilderBackground());
-    this.elements.prevBtn?.addEventListener('click', () => this.prevSlide());
-    this.elements.nextBtn?.addEventListener('click', () => this.nextSlide());
     this.elements.exitStudioBtn?.addEventListener('click', () => this.exitStudioToSettings());
     this.elements.recordBtn?.addEventListener('click', () => this.togglePreviewRecording());
     this.elements.previewConnectScreenBtn?.addEventListener('click', () => this.connectMissingScreenCapture());
@@ -283,6 +307,7 @@ const App = {
     this.elements.previewDiscardBtn?.addEventListener('click', () => this.discardCurrentTake());
     this.elements.editScriptBtn?.addEventListener('click', () => this.openScriptEditor('preview'));
     this.elements.teleprompterText?.addEventListener('click', () => this.openScriptEditor('preview'));
+    this.elements.teleprompterOverlayText?.addEventListener('click', () => this.openScriptEditor('preview'));
     this.elements.teleprompterEditorInput?.addEventListener('input', (e) => this.updateScriptEditorDraft(e.target.value));
     this.elements.teleprompterEditorInput?.addEventListener('keydown', (e) => this.handleScriptEditorKeydown(e));
     this.elements.teleprompterEditorSave?.addEventListener('click', () => this.saveInlineScriptEdit());
@@ -293,17 +318,6 @@ const App = {
     this.elements.recTeleprompterEditorInput?.addEventListener('keydown', (e) => this.handleScriptEditorKeydown(e));
     this.elements.recTeleprompterEditorSave?.addEventListener('click', () => this.saveInlineScriptEdit());
     this.elements.recTeleprompterEditorCancel?.addEventListener('click', () => this.closeScriptEditor());
-
-    // Upload custom background
-    document.getElementById('upload-bg-btn')?.addEventListener('click', () => {
-      document.getElementById('upload-bg-input')?.click();
-    });
-    document.getElementById('upload-bg-input')?.addEventListener('change', (e) => {
-      if (e.target.files[0]) this.uploadCustomBackground(e.target.files[0]);
-      e.target.value = '';
-    });
-    document.getElementById('remove-custom-btn')?.addEventListener('click', () => this.removeCustomBackground());
-    document.getElementById('connect-screen-capture-btn')?.addEventListener('click', () => this.connectCurrentScreenCapture());
 
     // Drag-and-drop on phone frame
     const phoneFrame = document.getElementById('phone-frame');
@@ -382,8 +396,6 @@ const App = {
     this.elements.recStartBtn?.addEventListener('click', () => this.startRecording());
     this.elements.recStopBtn?.addEventListener('click', () => this.stopRecording());
     this.elements.recRerecordBtn?.addEventListener('click', () => this.rerecord());
-    this.elements.recPrevBtn?.addEventListener('click', () => this.prevSlide());
-    this.elements.recNextBtn?.addEventListener('click', () => this.nextSlide());
     this.elements.recBackBtn?.addEventListener('click', () => this.switchToPreview());
     document.getElementById('rec-save-direct-btn')?.addEventListener('click', () => this.saveRecording());
     document.getElementById('rec-preview-btn')?.addEventListener('click', () => this.toggleRecPreview());
@@ -397,14 +409,19 @@ const App = {
     this.elements.reviewSaveBtn?.addEventListener('click', () => this.saveRecording());
     this.elements.reviewRedoBtn?.addEventListener('click', () => this.switchToRecording());
 
-    // Hotkeys
-    Hotkeys.bind('ArrowLeft', () => {
+    // Hotkeys (с описаниями — используются help-оверлеем по клавише ?)
+    Hotkeys.bind('ArrowLeft', 'Предыдущий этап', () => {
       if (this.state.screen === 'preview' || this.state.screen === 'recording') this.prevSlide();
     });
-    Hotkeys.bind('ArrowRight', () => {
+    Hotkeys.bind('ArrowRight', 'Следующий этап', () => {
       if (this.state.screen === 'preview' || this.state.screen === 'recording') this.nextSlide();
     });
-    Hotkeys.bind('Escape', () => {
+    Hotkeys.bind('Escape', 'Назад / закрыть редактор', () => {
+      const help = document.getElementById('hotkeys-help-overlay');
+      if (help && !help.classList.contains('hidden')) {
+        help.classList.add('hidden');
+        return;
+      }
       if (this.state.scriptEditorOpen) {
         this.closeScriptEditor();
         return;
@@ -412,7 +429,7 @@ const App = {
       if (this.state.screen === 'recording') this.switchToPreview();
       if (this.state.screen === 'review') this.switchToRecording();
     });
-    Hotkeys.bind(' ', () => {
+    Hotkeys.bind('Space', 'Старт / Стоп записи', () => {
       if (this.state.screen === 'preview') {
         this.togglePreviewRecording();
       } else if (this.state.screen === 'recording') {
@@ -420,12 +437,43 @@ const App = {
         else this.startRecording();
       }
     });
-    Hotkeys.bind('r', () => {
+    Hotkeys.bind('r', 'Перезаписать текущий этап', () => {
       if (this.state.screen === 'recording') this.rerecord();
     });
-    Hotkeys.bind('R', () => {
-      if (this.state.screen === 'recording') this.rerecord();
+    // Ctrl+S — сохранить запись
+    Hotkeys.bind('Ctrl+s', 'Сохранить запись', () => {
+      if (this.state.screen === 'recording' || this.state.screen === 'preview' || this.state.screen === 'review') {
+        this.saveRecording();
+      }
     });
+    // G — сетка правила третей
+    Hotkeys.bind('g', 'Сетка правила третей', () => {
+      document.getElementById('grid-toggle')?.click()
+        || document.getElementById('rec-grid-toggle')?.click();
+    });
+    // B — отметить последний дубль как best
+    Hotkeys.bind('b', 'Последний дубль → ⭐ лучший', () => {
+      if (this.state.screen !== 'recording') return;
+      const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+      if (!partNumber) return;
+      const list = Takes.list(partNumber);
+      if (!list.length) return;
+      const latest = list[list.length - 1];
+      Takes.toggleBest(partNumber, latest.id);
+      this.renderTakesPanel();
+    });
+    // M — toggle mirror
+    Hotkeys.bind('m', 'Зеркало камеры', () => {
+      const chk = document.getElementById('mirror-toggle-input');
+      if (chk) {
+        chk.checked = !chk.checked;
+        chk.dispatchEvent(new Event('change'));
+      }
+    });
+    // ? — показать help-оверлей со всеми хоткеями
+    Hotkeys.bind('Shift+?', 'Показать список хоткеев', () => this.toggleHotkeysHelp());
+    // Альтернатива: «/» — некоторые раскладки не шлют '?' на Shift+/
+    Hotkeys.bind('/', 'Показать список хоткеев', () => this.toggleHotkeysHelp());
 
     this.initCameraResize();
     this.initCameraDrag();
@@ -580,7 +628,6 @@ const App = {
     this.state.builderMeta = null;
     this.state.builderSelectedPartIndex = 0;
     this.state.builderDirty = false;
-    this.state.builderValidationOutput = '';
     this.state.builderSlideDrafts = {};
     this.state.builderDeletedPartUndo = null;
     this.renderBuilder();
@@ -658,7 +705,6 @@ const App = {
       this.state.builderMeta = meta;
       this.state.builderSelectedPartIndex = 0;
       this.state.builderDirty = false;
-      this.state.builderValidationOutput = '';
       this.state.builderSlideDrafts = {};
       this.state.builderDeletedPartUndo = null;
 
@@ -703,13 +749,8 @@ const App = {
     const project = this.state.builderProject;
     const titleEl = this.elements.builderProjectTitle;
     const metaEl = this.elements.builderProjectMeta;
-    const validationOutput = this.elements.builderValidationOutput;
 
     if (!project) {
-      if (validationOutput) {
-        validationOutput.textContent = '';
-        validationOutput.classList.add('hidden');
-      }
       this.updateBuilderButtons();
       return;
     }
@@ -720,11 +761,6 @@ const App = {
       const statusLabel = this.getBuilderStatusLabel(this.state.builderMeta?.status || 'draft');
       const dirtyLabel = this.state.builderDirty ? ' • несохраненные изменения' : '';
       metaEl.textContent = `${project.parts.length} этапов • ${modeLabel} • ${statusLabel}${dirtyLabel}`;
-    }
-
-    if (validationOutput) {
-      validationOutput.textContent = this.state.builderValidationOutput || '';
-      validationOutput.classList.toggle('hidden', !this.state.builderValidationOutput);
     }
 
     this.updateBuilderButtons();
@@ -954,8 +990,6 @@ const App = {
   updateBuilderButtons() {
     const hasProject = !!this.state.builderProject;
     if (this.elements.builderAddPartBtn) this.elements.builderAddPartBtn.disabled = !hasProject;
-    if (this.elements.builderSaveBtn) this.elements.builderSaveBtn.disabled = !hasProject;
-    if (this.elements.builderValidateBtn) this.elements.builderValidateBtn.disabled = !hasProject;
   },
 
   getBuilderStatusLabel(status) {
@@ -974,6 +1008,29 @@ const App = {
     el.className = 'builder-status';
     if (tone) {
       el.classList.add(`is-${tone}`);
+    }
+    this.reflectSaveIndicator(message, tone);
+  },
+
+  // Обновляет маленький индикатор «Сохранено ✓» в заголовке редактора.
+  // state: idle | saving | saved | error
+  setSaveIndicator(state, label) {
+    const el = this.elements.builderSaveIndicator;
+    const textEl = this.elements.builderSaveIndicatorText;
+    if (!el) return;
+    el.dataset.state = state;
+    if (textEl && label) textEl.textContent = label;
+  },
+
+  // Маппим текстовые статусы сохранения на состояния индикатора.
+  reflectSaveIndicator(message, tone) {
+    const msg = (message || '').toLowerCase();
+    if (tone === 'warning' && msg.includes('сохранени')) {
+      this.setSaveIndicator('saving', 'Сохраняю...');
+    } else if (tone === 'success' && (msg.includes('сохран') || msg.includes('загруж'))) {
+      this.setSaveIndicator('saved', 'Сохранено');
+    } else if (tone === 'error' && msg.includes('сохран')) {
+      this.setSaveIndicator('error', 'Ошибка');
     }
   },
 
@@ -1072,7 +1129,6 @@ const App = {
   markBuilderDirty(message = 'Есть несохраненные изменения', options = {}) {
     const { autosave = true } = options;
     this.state.builderDirty = true;
-    this.state.builderValidationOutput = '';
     const statusMessage = message
       ? `${message}. Черновик сохранится автоматически.`
       : 'Черновик сохранится автоматически.';
@@ -1217,7 +1273,6 @@ const App = {
         label: part.screen_capture_label || 'Окно экрана'
       });
       this.showCurrentSlide();
-      this.updateCustomBtn();
       this.updatePreviewRecordingUI();
     } catch (error) {
       alert('Не удалось подключить окно: ' + error.message);
@@ -1407,9 +1462,8 @@ const App = {
 
     if (autosave) {
       this.setBuilderStatus('Сохранение черновика...', 'warning');
-    } else if (this.elements.builderSaveBtn) {
-      this.elements.builderSaveBtn.disabled = true;
-      this.elements.builderSaveBtn.textContent = 'Сохранение...';
+    } else {
+      this.setBuilderStatus('Сохранение...', 'warning');
     }
 
     this.builderSavePromise = (async () => {
@@ -1431,7 +1485,6 @@ const App = {
       this.state.builderProjectName = refreshedProject.name || builderProjectName;
       this.state.builderMeta = refreshedMeta;
       this.state.builderDirty = false;
-      this.state.builderValidationOutput = '';
       this.state.builderSlideDrafts = {};
       this.state.builderDeletedPartUndo = null;
 
@@ -1459,10 +1512,6 @@ const App = {
       })
       .finally(() => {
         this.builderSavePromise = null;
-        if (this.elements.builderSaveBtn) {
-          this.elements.builderSaveBtn.disabled = false;
-          this.elements.builderSaveBtn.textContent = 'Сохранить сейчас';
-        }
       });
 
     return this.builderSavePromise;
@@ -1529,41 +1578,6 @@ const App = {
     if (this.state.isRecording) {
       this.stopAutoscroll();
       this.startAutoscroll();
-    }
-  },
-
-  async validateBuilderProject() {
-    const projectName = this.state.builderProjectName;
-    if (!projectName) return;
-
-    const saved = await this.saveBuilderProject({ quiet: true });
-    if (!saved) return;
-
-    if (this.elements.builderValidateBtn) {
-      this.elements.builderValidateBtn.disabled = true;
-      this.elements.builderValidateBtn.textContent = 'Проверка...';
-    }
-
-    try {
-      const result = await API.validateProject(projectName);
-      this.state.builderMeta = result.meta;
-      this.state.builderValidationOutput = result.output || '';
-      await this.loadProjects(projectName);
-      this.renderBuilder();
-
-      if (result.valid) {
-        this.setBuilderStatus('Валидация пройдена. Проект готов к записи.', 'success');
-      } else {
-        this.setBuilderStatus('Валидация не пройдена. Исправьте ошибки ниже.', 'error');
-      }
-    } catch (e) {
-      this.setBuilderStatus(`Ошибка валидации: ${e.message}`, 'error');
-      alert('Ошибка валидации: ' + e.message);
-    } finally {
-      if (this.elements.builderValidateBtn) {
-        this.elements.builderValidateBtn.disabled = false;
-        this.elements.builderValidateBtn.textContent = 'Проверить';
-      }
     }
   },
 
@@ -1811,14 +1825,6 @@ const App = {
       await this.loadStudioPreferences(projectName);
 
       Teleprompter.textElement = this.elements.teleprompterText;
-      Teleprompter.partInfoElement = null;
-      Teleprompter.layoutBadgeElement = null;
-      Teleprompter.timingBadgeElement = null;
-      Teleprompter.typeBadgeElement = null;
-      Teleprompter.promptElement = null;
-      Teleprompter.promptSection = null;
-      Teleprompter.titleElement = null;
-      Teleprompter.noteElement = null;
 
       // Apply persisted camera settings before the first frame renders.
       this.preparePreviewRecordingCanvas();
@@ -1833,6 +1839,10 @@ const App = {
       this.elements.previewScreen.classList.remove('hidden');
       this.state.screen = 'preview';
       requestAnimationFrame(() => this.syncCameraWindowPlacement());
+
+      // Запускаем обновление audio-meter (preview + recording экраны используют
+      // один RAF-loop, он читает Camera.getAudioLevel() каждый кадр).
+      this.startAudioMeterLoop();
 
     } catch (e) {
       console.error('Failed to enter studio:', e);
@@ -1993,6 +2003,177 @@ const App = {
     await this.connectCurrentScreenCapture();
   },
 
+  // === Hotkeys help overlay ===
+  // Рисует список хоткеев из Hotkeys.listDescribed() и показывает оверлей.
+  // Повторный вызов — скрывает.
+  toggleHotkeysHelp() {
+    const overlay = document.getElementById('hotkeys-help-overlay');
+    const listEl = document.getElementById('hotkeys-help-list');
+    const closeBtn = overlay?.querySelector('.hotkeys-help-close');
+    if (!overlay || !listEl) return;
+
+    if (!overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      return;
+    }
+
+    listEl.innerHTML = '';
+    const items = Hotkeys.listDescribed();
+    items.sort((a, b) => a.key.localeCompare(b.key));
+    for (const { key, description } of items) {
+      const kbd = document.createElement('kbd');
+      kbd.textContent = this._formatHotkeyLabel(key);
+      const desc = document.createElement('div');
+      desc.className = 'hotkey-desc';
+      desc.textContent = description;
+      listEl.appendChild(kbd);
+      listEl.appendChild(desc);
+    }
+    overlay.classList.remove('hidden');
+
+    if (closeBtn && !closeBtn._bound) {
+      closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+      closeBtn._bound = true;
+    }
+    // Клик по тёмному фону — закрыть
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.classList.add('hidden');
+    }, { once: true });
+  },
+
+  _formatHotkeyLabel(key) {
+    return key
+      .split('+')
+      .map(p => {
+        if (p === 'Space') return 'Space';
+        if (p === 'ArrowLeft') return '←';
+        if (p === 'ArrowRight') return '→';
+        if (p.length === 1) return p.toUpperCase();
+        return p;
+      })
+      .join(' + ');
+  },
+
+  // === Audio Meter ===
+  // Читает уровень с микрофона через Camera.getAudioLevel() и перерисовывает
+  // оба метра (preview + recording) пока активна камера. Независимо от того,
+  // идёт ли запись — метр живой всегда, чтобы пользователь сразу видел «слышно
+  // ли меня вообще». Peak-hold: пиковый указатель держится 800мс и плавно падает.
+  startAudioMeterLoop() {
+    this.stopAudioMeterLoop();
+    const meters = [
+      {
+        root: document.getElementById('preview-audio-meter'),
+        fill: document.querySelector('[data-preview-meter-fill]'),
+        peakEl: document.querySelector('[data-preview-meter-peak]'),
+        hint: document.querySelector('[data-preview-meter-hint]')
+      },
+      {
+        root: document.getElementById('rec-audio-meter'),
+        fill: document.querySelector('[data-rec-meter-fill]'),
+        peakEl: document.querySelector('[data-rec-meter-peak]'),
+        hint: null
+      }
+    ].filter(m => m.root);
+
+    if (!meters.length) return;
+
+    const peakHold = { value: 0, lastAt: 0 };
+    const SILENCE_THRESHOLD = 0.01;  // -40dB
+    const CLIP_THRESHOLD = 0.92;     // ~ -0.7dB
+    const HOLD_MS = 800;
+    const AUTO_STOP_SILENCE_MS = 3000;
+    const AUTO_STOP_GRACE_MS = 1500;  // первые 1.5s после старта не стопаем
+
+    const render = (now) => {
+      const { rms, peak } = Camera.getAudioLevel();
+      // Нелинейное масштабирование: звук воспринимается логарифмически,
+      // так что RMS 0.1 должен выглядеть значимо. Используем sqrt.
+      const level = Math.min(1, Math.sqrt(rms) * 1.4);
+
+      // Peak-hold: если новый peak выше — подхватываем; иначе плавно спадает.
+      const peakDisplay = Math.min(1, Math.sqrt(peak));
+      if (peakDisplay > peakHold.value || now - peakHold.lastAt > HOLD_MS) {
+        peakHold.value = peakDisplay;
+        peakHold.lastAt = now;
+      } else {
+        peakHold.value = Math.max(0, peakHold.value - 0.008);
+      }
+
+      const isSilent = rms < SILENCE_THRESHOLD;
+      const isClipping = peak > CLIP_THRESHOLD;
+
+      for (const m of meters) {
+        if (m.fill) m.fill.style.width = `${level * 100}%`;
+        if (m.peakEl) m.peakEl.style.left = `${peakHold.value * 100}%`;
+        m.root.classList.toggle('is-silent', isSilent);
+        m.root.classList.toggle('is-active', !isSilent);
+        m.root.classList.toggle('is-clipping', isClipping);
+        if (m.hint) {
+          m.hint.textContent = isSilent
+            ? 'тихо'
+            : isClipping
+              ? 'пик!'
+              : `${Math.round(level * 100)}%`;
+        }
+      }
+
+      // === Авто-стоп по тишине ===
+      // Работает только когда запись идёт и пользователь включил toggle.
+      // Даём grace-период на начало (пока юзер втягивается), потом
+      // засекаем непрерывную тишину и стопаем по достижении порога.
+      const autoStopEnabled = document.getElementById('auto-stop-toggle')?.checked;
+      const hintEl = document.getElementById('auto-stop-hint');
+      if (autoStopEnabled && this.state.isRecording) {
+        const recStart = this.state.recordingSegmentStartedAt || 0;
+        const inGrace = recStart && (now - recStart < AUTO_STOP_GRACE_MS);
+        if (!inGrace) {
+          if (isSilent) {
+            if (!this._silenceStartedAt) this._silenceStartedAt = now;
+            const silentFor = now - this._silenceStartedAt;
+            if (hintEl) {
+              const remaining = Math.max(0, Math.ceil((AUTO_STOP_SILENCE_MS - silentFor) / 1000));
+              hintEl.textContent = `Тихо уже ${Math.round(silentFor / 100) / 10}с — стоп через ${remaining}с`;
+            }
+            if (silentFor >= AUTO_STOP_SILENCE_MS) {
+              this._silenceStartedAt = null;
+              if (hintEl) hintEl.textContent = 'Остановлено автоматически';
+              this.stopRecording();
+            }
+          } else {
+            this._silenceStartedAt = null;
+            if (hintEl) hintEl.textContent = 'Тишина дольше 3 сек → стоп записи';
+          }
+        }
+      } else {
+        this._silenceStartedAt = null;
+        if (hintEl && !autoStopEnabled) {
+          hintEl.textContent = 'Тишина дольше 3 сек → стоп записи';
+        }
+      }
+
+      this._audioMeterRaf = requestAnimationFrame(render);
+    };
+
+    this._audioMeterRaf = requestAnimationFrame(render);
+  },
+
+  stopAudioMeterLoop() {
+    if (this._audioMeterRaf) {
+      cancelAnimationFrame(this._audioMeterRaf);
+      this._audioMeterRaf = null;
+    }
+    // Обнуляем визуально чтобы не оставался последний кадр
+    ['[data-preview-meter-fill]', '[data-rec-meter-fill]'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (el) el.style.width = '0%';
+    });
+    ['[data-preview-meter-peak]', '[data-rec-meter-peak]'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (el) el.style.left = '0%';
+    });
+  },
+
   preparePreviewRecordingCanvas(startRendering = false, targetFps = 30) {
     if (!this.elements.recordingCanvas) return;
 
@@ -2103,6 +2284,10 @@ const App = {
       recordBtn.textContent = isRecording ? 'Стоп' : 'REC';
       recordBtn.classList.toggle('is-stop', isRecording);
       recordBtn.disabled = (!!missingCapturePart && !isRecording) || hasPendingTake;
+      // Пока фрагмент не сохранён/не отброшен — прячем REC, чтобы рядом
+      // остались только «Сохранить» и «Игнорировать» (без визуального шума
+      // и без наложения текста на край ноутбука сверху).
+      recordBtn.classList.toggle('hidden', hasPendingTake && !isRecording);
     }
 
     if (readinessEl) {
@@ -2167,6 +2352,8 @@ const App = {
     Background.show(null);
     Background.stopAllScreenCaptures();
     this.stopPreviewSegmentation();
+    this.stopAudioMeterLoop();
+    Takes.clear();
     Camera.stop();
 
     const recPreviewVideo = document.getElementById('rec-preview-video');
@@ -2213,9 +2400,6 @@ const App = {
       Background.show(null);
     }
 
-    // Update custom background button visibility
-    this.updateCustomBtn();
-
     // Apply transition animation in Preview
     this.playTransition();
 
@@ -2240,12 +2424,8 @@ const App = {
       Canvas.triggerTransition();
     }
 
-    if (this.elements.prevBtn) {
-      this.elements.prevBtn.disabled = this.state.currentPart === 0;
-      this.elements.nextBtn.disabled = this.state.currentPart === this.state.project.parts.length - 1;
-    }
-
     this.renderStudioPartRail();
+    this.renderTakesPanel();
     this.updatePreviewRecordingUI();
 
     if (this.state.screen === 'recording') {
@@ -2788,7 +2968,6 @@ const App = {
         Background.stopScreenCapture(part.part_number);
         await Background.preloadAll(this.state.project, this.state.projectName, { bust: true });
         Background.show(part.part_number);
-        this.updateCustomBtn();
         this.showCurrentSlide();
       }
     } catch (e) {
@@ -2811,26 +2990,6 @@ const App = {
       this.showCurrentSlide();
     } catch (e) {
       alert('Ошибка удаления: ' + e.message);
-    }
-  },
-
-  updateCustomBtn() {
-    const part = this.state.project?.parts[this.state.currentPart];
-    const removeBtn = document.getElementById('remove-custom-btn');
-    const connectScreenBtn = document.getElementById('connect-screen-capture-btn');
-    if (removeBtn) {
-      if (part?.custom_file) {
-        removeBtn.classList.remove('hidden');
-      } else {
-        removeBtn.classList.add('hidden');
-      }
-    }
-    if (connectScreenBtn) {
-      const isScreenCapture = part?.layout !== 'face_only' && part?.background_type === 'screen_capture';
-      connectScreenBtn.classList.toggle('hidden', !isScreenCapture);
-      connectScreenBtn.textContent = Background.isScreenCaptureConnected(part?.part_number)
-        ? 'Перевыбрать окно'
-        : 'Подключить окно';
     }
   },
 
@@ -3057,13 +3216,147 @@ const App = {
     if (container) container.scrollTop = 0;
   },
 
-  rerecord() {
+  async rerecord() {
+    // Не выбрасываем дубль в мусор — архивируем в Takes. Пользователь сможет
+    // вернуться к нему, сравнить с новым и выбрать ⭐ лучший.
+    await this.archiveCurrentTake();
     this.discardCurrentTake();
     // Hide preview video if showing
     const prevVideo = document.getElementById('rec-preview-video');
     if (prevVideo) { prevVideo.pause(); prevVideo.classList.add('hidden'); prevVideo.src = ''; }
     const prevBtn = document.getElementById('rec-preview-btn');
     if (prevBtn) prevBtn.textContent = 'Просмотр';
+  },
+
+  // Берёт текущий записанный blob из Recorder и кладёт его в Takes для
+  // текущего этапа. Безопасно вызывать, если записи нет — просто no-op.
+  async archiveCurrentTake() {
+    if (!Recorder.recordedBlob) return;
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    if (!partNumber) return;
+    const durationMs = this.state.recordingElapsedMs || 0;
+    try {
+      await Takes.add(partNumber, Recorder.recordedBlob, durationMs);
+      this.renderTakesPanel();
+    } catch (e) {
+      console.warn('Не удалось сохранить дубль в менеджер:', e);
+    }
+  },
+
+  // Перерисовывает панель дублей для текущего этапа. Скрывает панель, если
+  // дублей нет.
+  renderTakesPanel() {
+    const panel = document.getElementById('takes-panel');
+    const listEl = document.getElementById('takes-list');
+    const hintEl = document.getElementById('takes-panel-hint');
+    if (!panel || !listEl) return;
+
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    if (!partNumber) {
+      panel.classList.add('hidden');
+      return;
+    }
+
+    const takes = Takes.list(partNumber);
+    if (takes.length === 0) {
+      panel.classList.add('hidden');
+      listEl.innerHTML = '';
+      return;
+    }
+
+    panel.classList.remove('hidden');
+    const bestCount = takes.filter(t => t.isBest).length;
+    if (hintEl) {
+      hintEl.textContent = bestCount
+        ? '⭐ Выбран лучший дубль'
+        : `${takes.length} ${this._pluralizeTakes(takes.length)} — отметьте лучший`;
+    }
+
+    listEl.innerHTML = '';
+    takes.forEach((take, idx) => {
+      const card = document.createElement('div');
+      card.className = 'take-card' + (take.isBest ? ' is-best' : '');
+      card.dataset.takeId = take.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'take-card-thumb';
+      if (take.thumbnail) thumb.style.backgroundImage = `url("${take.thumbnail}")`;
+      const num = document.createElement('span');
+      num.className = 'take-card-num';
+      num.textContent = `#${idx + 1}`;
+      thumb.appendChild(num);
+      card.appendChild(thumb);
+
+      const info = document.createElement('div');
+      info.className = 'take-card-info';
+      const title = document.createElement('div');
+      title.className = 'take-card-title';
+      title.textContent = `Дубль ${idx + 1}`;
+      if (take.isBest) {
+        const star = document.createElement('span');
+        star.textContent = '⭐';
+        title.appendChild(star);
+      }
+      info.appendChild(title);
+      const meta = document.createElement('div');
+      meta.className = 'take-card-meta';
+      meta.textContent = Takes.formatDuration(take.durationMs);
+      info.appendChild(meta);
+      card.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'take-card-actions';
+
+      const bestBtn = document.createElement('button');
+      bestBtn.type = 'button';
+      bestBtn.className = 'take-card-btn' + (take.isBest ? ' is-best-on' : '');
+      bestBtn.title = take.isBest ? 'Снять отметку «лучший»' : 'Отметить как лучший';
+      bestBtn.textContent = '⭐';
+      bestBtn.addEventListener('click', () => {
+        Takes.toggleBest(partNumber, take.id);
+        this.renderTakesPanel();
+      });
+      actions.appendChild(bestBtn);
+
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'take-card-btn';
+      playBtn.title = 'Просмотр дубля';
+      playBtn.textContent = '▶';
+      playBtn.addEventListener('click', () => this.playTakePreview(take));
+      actions.appendChild(playBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'take-card-btn is-danger';
+      delBtn.title = 'Удалить дубль';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', () => {
+        if (!confirm('Удалить этот дубль?')) return;
+        Takes.remove(partNumber, take.id);
+        this.renderTakesPanel();
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+      listEl.appendChild(card);
+    });
+  },
+
+  _pluralizeTakes(n) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'дубль';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дубля';
+    return 'дублей';
+  },
+
+  playTakePreview(take) {
+    const prevVideo = document.getElementById('rec-preview-video');
+    if (!prevVideo) return;
+    prevVideo.src = take.objectUrl;
+    prevVideo.classList.remove('hidden');
+    prevVideo.play().catch(e => console.warn('Ошибка воспроизведения дубля:', e));
   },
 
   async doCountdown() {
@@ -3265,7 +3558,14 @@ const App = {
   },
 
   async saveRecording() {
-    if (!Recorder.hasCapturedData()) {
+    // Перед сохранением проверяем: есть ли помеченный «лучший» дубль?
+    // Если да — используем именно его, даже если сейчас в Recorder лежит
+    // более свежая запись. Это ключевой смысл Take Manager.
+    const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+    const bestTake = partNumber ? Takes.getBestOrLatest(partNumber) : null;
+    const hasBestMarked = bestTake && bestTake.isBest;
+
+    if (!Recorder.hasCapturedData() && !bestTake) {
       return alert('Сначала запишите хотя бы один фрагмент.');
     }
 
@@ -3284,7 +3584,25 @@ const App = {
         await this.stopRecording();
       }
       this.pauseRecordingElapsed();
-      const result = await Recorder.saveRecording(this.state.projectName);
+
+      let result;
+      if (hasBestMarked) {
+        // Отправляем именно best-дубль через тот же API, что Recorder использует
+        result = await API.saveRecording(this.state.projectName, '', bestTake.blob);
+        if (result.file) {
+          // Если WebM — конвертируем в MP4 как Recorder.saveRecording
+          const blobType = bestTake.blob.type || '';
+          if (!blobType.startsWith('video/mp4')) {
+            try {
+              result = await API.convertRecording(this.state.projectName, result.file);
+            } catch (e) {
+              console.warn('Конвертация best-дубля не удалась, оставляю WebM:', e);
+            }
+          }
+        }
+      } else {
+        result = await Recorder.saveRecording(this.state.projectName);
+      }
       this.state.recordingStatusMessage = `Сохранено: ${result.file}`;
 
       // Обновляем file-browser чтобы записанное видео сразу появилось в списке

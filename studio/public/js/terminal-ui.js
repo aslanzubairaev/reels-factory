@@ -78,9 +78,12 @@
       // Drag-handle resize
       this._installResizeHandle();
 
-      // Голосовой ввод (Wispr Flow / любой voice-to-text): пользователь
-      // диктует в отдельное поле, Enter / кнопка → отправляет в активную сессию.
+      // Голосовой ввод (Wispr Flow / любой voice-to-text): по умолчанию
+      // диктовать нужно ПРЯМО в xterm — скрытая xterm-textarea принимает
+      // system input от Wispr Flow. Отдельное поле-буфер — опциональный
+      // fallback, включается кнопкой 🎙 в header'е.
       this._installVoiceBar();
+      this._installVoiceToggle();
     },
 
     _installVoiceBar() {
@@ -114,6 +117,48 @@
       input.addEventListener('input', () => {
         input.style.height = 'auto';
         input.style.height = Math.min(90, input.scrollHeight) + 'px';
+      });
+    },
+
+    // Toggle видимости голосового поля. Persist в localStorage —
+    // если пользователь его включил, при следующем открытии терминала
+    // поле останется видимым.
+    _installVoiceToggle() {
+      const toggleBtn = this.rootEl.querySelector('.terminal-voice-toggle');
+      const bar = document.getElementById('terminal-voice-bar');
+      if (!toggleBtn || !bar) return;
+
+      const apply = (visible) => {
+        bar.classList.toggle('hidden', !visible);
+        toggleBtn.classList.toggle('is-active', visible);
+        toggleBtn.title = visible
+          ? 'Скрыть поле голосового ввода (Wispr Flow может писать прямо в терминал)'
+          : 'Показать отдельное поле-буфер для голоса (fallback, если Wispr плохо видит xterm)';
+      };
+
+      // По умолчанию поле СКРЫТО — Wispr Flow пишет прямо в xterm (скрытая
+      // xterm-textarea растянута CSS до 320x24, DOM-сканеры её видят).
+      // Одноразовая миграция v2: старые пользователи, у кого поле было '1',
+      // получают сброс на скрытое состояние, дальше их выбор уважается.
+      const MIGRATION_KEY = 'terminal.voiceBarMigratedV2';
+      if (!localStorage.getItem(MIGRATION_KEY)) {
+        localStorage.setItem('terminal.voiceBarVisible', '0');
+        localStorage.setItem(MIGRATION_KEY, '1');
+      }
+      const savedRaw = localStorage.getItem('terminal.voiceBarVisible');
+      const saved = savedRaw === null ? false : savedRaw === '1';
+      apply(saved);
+
+      toggleBtn.addEventListener('click', () => {
+        const next = bar.classList.contains('hidden');
+        apply(next);
+        localStorage.setItem('terminal.voiceBarVisible', next ? '1' : '0');
+        // При включении поля — фокус в textarea, при скрытии — обратно в xterm,
+        // чтобы Wispr Flow диктовал в основной терминал.
+        if (next) document.getElementById('terminal-voice-input')?.focus();
+        else window.TerminalPanel?.term?.focus();
+        // Перефитить терминал (высота изменилась)
+        setTimeout(() => window.TerminalPanel?.fit(), 50);
       });
     },
 

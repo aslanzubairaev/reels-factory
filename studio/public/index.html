@@ -31,19 +31,27 @@
         <button type="button" class="terminal-btn terminal-pos-btn" data-pos="right" title="Прикрепить справа">➡</button>
         <button type="button" class="terminal-btn terminal-pos-btn" data-pos="detach" title="Открыть в отдельном окне">⧉</button>
         <span class="terminal-btn-separator"></span>
+        <!-- Тоггл голосового поля. По умолчанию скрыт: Wispr Flow печатает
+             прямо в терминал. Включить поле-буфер можно если Wispr плохо
+             видит xterm как input. -->
+        <button type="button" class="terminal-btn terminal-voice-toggle" title="Показать/скрыть поле голосового ввода">🎙</button>
         <button type="button" class="terminal-btn terminal-clear" title="Очистить">🗑</button>
         <button type="button" class="terminal-btn terminal-restart" title="Перезапустить">↻</button>
         <button type="button" class="terminal-btn terminal-close" title="Закрыть (Ctrl+`)">✕</button>
       </div>
     </div>
     <div class="terminal-host"></div>
-    <!-- Голосовой ввод (Wispr Flow и подобные): сюда можно диктовать, Enter отправит в AI-CLI -->
-    <div class="terminal-voice-bar">
+    <!-- Голосовой ввод (Wispr Flow и подобные): по умолчанию ВИДИМ.
+         Wispr Flow часто печатает прямо в xterm через скрытую textarea, но
+         многие voice-инструменты не видят xterm как активный input — для них
+         это поле-буфер. Скрыть можно кнопкой 🎙 в header'е (состояние
+         запоминается в localStorage). -->
+    <div class="terminal-voice-bar" id="terminal-voice-bar">
       <textarea
         id="terminal-voice-input"
         class="terminal-voice-input"
         rows="1"
-        placeholder="🎙 Поле для голосового ввода (Wispr Flow) — нажми Enter чтобы отправить"
+        placeholder="🎙 Поле для голосового ввода — Enter отправляет в терминал"
         autocomplete="off"
         spellcheck="false"></textarea>
       <button type="button" id="terminal-voice-send" class="terminal-btn terminal-voice-send" title="Отправить (Enter)">➤</button>
@@ -102,13 +110,16 @@
 
             <section class="builder-editor-column">
               <div class="builder-header">
-                <div>
+                <div class="builder-header-left">
                   <div class="builder-column-kicker">Редактор</div>
                   <div id="builder-selected-part-label" class="builder-selected-part-label">Этап 1</div>
                 </div>
                 <div class="builder-actions">
-                  <button id="builder-save-btn" class="btn btn-secondary btn-sm hidden" type="button">Сохранить сейчас</button>
-                  <button id="builder-validate-btn" class="btn btn-secondary btn-sm hidden" type="button">Проверить</button>
+                  <!-- Индикатор автосохранения: меняется через setBuilderStatus -->
+                  <span id="builder-save-indicator" class="builder-save-indicator" data-state="idle" aria-live="polite">
+                    <span class="builder-save-dot"></span>
+                    <span class="builder-save-text">Сохранено</span>
+                  </span>
                   <button id="builder-delete-part-btn" class="btn btn-danger btn-sm" type="button">Удалить этап</button>
                 </div>
               </div>
@@ -157,7 +168,6 @@
                 </div>
               </div>
 
-              <pre id="builder-validation-output" class="builder-validation-output hidden"></pre>
             </section>
           </div>
 
@@ -197,6 +207,19 @@
   <div id="loading-overlay" class="hidden">
     <div class="spinner"></div>
     <div id="loading-text">Загрузка...</div>
+  </div>
+
+  <!-- Help-оверлей: список всех хоткеев. Вызывается клавишей ? или / .
+       Закрывается повторным нажатием или Escape. -->
+  <div id="hotkeys-help-overlay" class="hotkeys-help-overlay hidden">
+    <div class="hotkeys-help-card">
+      <div class="hotkeys-help-head">
+        <h2>Горячие клавиши</h2>
+        <button type="button" class="hotkeys-help-close" aria-label="Закрыть">✕</button>
+      </div>
+      <div id="hotkeys-help-list" class="hotkeys-help-list"></div>
+      <div class="hotkeys-help-foot">Нажми <kbd>?</kbd> ещё раз или <kbd>Esc</kbd> — чтобы закрыть</div>
+    </div>
   </div>
 
   <!-- Режим Preview -->
@@ -276,6 +299,19 @@
               </div>
               <div id="preview-recording-timer" class="preview-recording-timer">00:00</div>
             </div>
+            <!-- Audio level meter: горизонтальная полоска с пиковым указателем.
+                 Показывает громкость микрофона в реальном времени, помогает
+                 убедиться что микрофон реально ловит звук перед записью. -->
+            <div class="audio-meter" id="preview-audio-meter" title="Уровень звука микрофона">
+              <span class="audio-meter-icon">🎙</span>
+              <div class="audio-meter-bar">
+                <div class="audio-meter-fill" data-preview-meter-fill></div>
+                <div class="audio-meter-peak" data-preview-meter-peak></div>
+                <div class="audio-meter-mark audio-meter-mark-warn"></div>
+                <div class="audio-meter-mark audio-meter-mark-peak"></div>
+              </div>
+              <span class="audio-meter-hint" data-preview-meter-hint>—</span>
+            </div>
             <div id="preview-recording-readiness" class="recording-readiness hidden">
               <div id="preview-recording-readiness-text" class="recording-readiness-text">Окно экрана не подключено.</div>
               <button id="preview-connect-screen-btn" class="btn btn-secondary btn-sm" type="button">Подключить</button>
@@ -309,6 +345,12 @@
             <button type="button" id="safe-zones-toggle" class="safe-zones-toggle-btn" title="Показать/скрыть опасные зоны Instagram">
               ⚠ Зоны IG
             </button>
+            <!-- Rule-of-thirds сетка 3×3: помогает композиционно выстроить кадр.
+                 Toggle через кнопку ниже, состояние сохраняется в localStorage. -->
+            <button type="button" id="grid-toggle" class="grid-toggle-btn" title="Показать/скрыть сетку правила третей (G)">
+              ⊞ Сетка
+            </button>
+            <div class="rule-of-thirds-grid"></div>
           </div>
         </div>
       </div>
@@ -362,18 +404,11 @@
     </div>
   </div>
 
-  <input type="file" id="upload-bg-input" accept="image/*,video/*" class="hidden studio-compat-control">
-  <button id="upload-bg-btn" class="hidden studio-compat-control" type="button">Загрузить медиа</button>
-  <button id="connect-screen-capture-btn" class="hidden studio-compat-control" type="button">Подключить окно</button>
-  <button id="remove-custom-btn" class="hidden studio-compat-control" type="button">Убрать медиа</button>
-  <div id="generate-spinner" class="generate-spinner hidden studio-compat-control"></div>
-  <div id="part-info" class="hidden studio-compat-control"></div>
-  <span id="layout-badge" class="hidden studio-compat-control"></span>
-  <span id="type-badge" class="hidden studio-compat-control"></span>
-  <div id="bg-panel-title" class="hidden studio-compat-control"></div>
-  <div id="bg-panel-note" class="hidden studio-compat-control"></div>
-  <button id="prev-btn" class="hidden studio-compat-control" type="button">Назад</button>
-  <button id="next-btn" class="hidden studio-compat-control" type="button">Вперёд</button>
+  <!-- Floating-спиннер: показывается поверх всего при генерации/загрузке фона -->
+  <div id="generate-spinner" class="generate-spinner-floating hidden">
+    <div class="generate-spinner-ring"></div>
+    <div class="generate-spinner-label">Обработка...</div>
+  </div>
 
   <!-- Режим Recording -->
   <div id="recording-screen" class="hidden">
@@ -394,6 +429,10 @@
           <button type="button" id="rec-safe-zones-toggle" class="safe-zones-toggle-btn" title="Показать/скрыть опасные зоны">
             ⚠ Зоны IG
           </button>
+          <button type="button" id="rec-grid-toggle" class="grid-toggle-btn" title="Показать/скрыть сетку правила третей (G)">
+            ⊞ Сетка
+          </button>
+          <div class="rule-of-thirds-grid"></div>
         </div>
       </div>
 
@@ -404,6 +443,30 @@
             <span id="rec-status-text">ГОТОВ</span>
             <span id="rec-part-info" class="rec-part-info">Этап 1 / 5</span>
           </div>
+          <!-- Audio meter в recording-панели: тот же компонент, свои id. -->
+          <div class="audio-meter audio-meter-compact" id="rec-audio-meter" title="Уровень звука микрофона">
+            <span class="audio-meter-icon">🎙</span>
+            <div class="audio-meter-bar">
+              <div class="audio-meter-fill" data-rec-meter-fill></div>
+              <div class="audio-meter-peak" data-rec-meter-peak></div>
+              <div class="audio-meter-mark audio-meter-mark-warn"></div>
+              <div class="audio-meter-mark audio-meter-mark-peak"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Авто-стоп по тишине: если включен, запись остановится автоматически,
+             когда уровень звука < -40dB больше 3 секунд подряд. Opt-in —
+             по умолчанию выключен, чтобы не сломать привычный воркфлоу. -->
+        <div class="panel-section auto-stop-panel">
+          <label class="auto-stop-toggle">
+            <input type="checkbox" id="auto-stop-toggle">
+            <span class="auto-stop-toggle-track"><span class="auto-stop-toggle-thumb"></span></span>
+            <span class="auto-stop-toggle-copy">
+              <span class="auto-stop-toggle-title">⏸ Авто-стоп по тишине</span>
+              <span class="auto-stop-toggle-hint" id="auto-stop-hint">Тишина дольше 3 сек → стоп записи</span>
+            </span>
+          </label>
         </div>
 
         <div class="panel-section stage-rail-panel">
@@ -415,6 +478,17 @@
           <div class="badges-row">
             <span id="rec-layout-badge" class="badge badge-layout">FACE_ONLY</span>
           </div>
+        </div>
+
+        <!-- Панель дублей текущего этапа. Скрыта пока нет записанных попыток.
+             Каждая карточка — это один дубль: превью-кадр, длительность,
+             кнопки ⭐Best / ▶Просмотр / 🗑Удалить. -->
+        <div id="takes-panel" class="panel-section takes-panel hidden">
+          <div class="takes-panel-head">
+            <h3>🎬 Дубли этапа</h3>
+            <span class="takes-panel-hint" id="takes-panel-hint">Снимите первый дубль</span>
+          </div>
+          <div id="takes-list" class="takes-list"></div>
         </div>
 
         <div id="rec-teleprompter-side" class="panel-section rec-teleprompter-panel">
@@ -508,6 +582,7 @@
   <script src="/js/canvas.js"></script>
   <script src="/js/html-slides.js"></script>
   <script src="/js/recorder.js"></script>
+  <script src="/js/takes.js"></script>
   <script src="/js/recording-state.js"></script>
   <script src="/js/screen-capture.js"></script>
   <script src="/js/screen-pan.js"></script>
