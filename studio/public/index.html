@@ -201,6 +201,19 @@
     <div id="loading-text">Загрузка...</div>
   </div>
 
+  <!-- Help-оверлей: список всех хоткеев. Вызывается клавишей ? или / .
+       Закрывается повторным нажатием или Escape. -->
+  <div id="hotkeys-help-overlay" class="hotkeys-help-overlay hidden">
+    <div class="hotkeys-help-card">
+      <div class="hotkeys-help-head">
+        <h2>Горячие клавиши</h2>
+        <button type="button" class="hotkeys-help-close" aria-label="Закрыть">✕</button>
+      </div>
+      <div id="hotkeys-help-list" class="hotkeys-help-list"></div>
+      <div class="hotkeys-help-foot">Нажми <kbd>?</kbd> ещё раз или <kbd>Esc</kbd> — чтобы закрыть</div>
+    </div>
+  </div>
+
   <!-- Режим Preview -->
   <div id="preview-screen" class="hidden">
     <div class="preview-left">

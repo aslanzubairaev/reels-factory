@@ -395,14 +395,19 @@ const App = {
     this.elements.reviewSaveBtn?.addEventListener('click', () => this.saveRecording());
     this.elements.reviewRedoBtn?.addEventListener('click', () => this.switchToRecording());
 
-    // Hotkeys
-    Hotkeys.bind('ArrowLeft', () => {
+    // Hotkeys (с описаниями — используются help-оверлеем по клавише ?)
+    Hotkeys.bind('ArrowLeft', 'Предыдущий этап', () => {
       if (this.state.screen === 'preview' || this.state.screen === 'recording') this.prevSlide();
     });
-    Hotkeys.bind('ArrowRight', () => {
+    Hotkeys.bind('ArrowRight', 'Следующий этап', () => {
       if (this.state.screen === 'preview' || this.state.screen === 'recording') this.nextSlide();
     });
-    Hotkeys.bind('Escape', () => {
+    Hotkeys.bind('Escape', 'Назад / закрыть редактор', () => {
+      const help = document.getElementById('hotkeys-help-overlay');
+      if (help && !help.classList.contains('hidden')) {
+        help.classList.add('hidden');
+        return;
+      }
       if (this.state.scriptEditorOpen) {
         this.closeScriptEditor();
         return;
@@ -410,7 +415,7 @@ const App = {
       if (this.state.screen === 'recording') this.switchToPreview();
       if (this.state.screen === 'review') this.switchToRecording();
     });
-    Hotkeys.bind(' ', () => {
+    Hotkeys.bind('Space', 'Старт / Стоп записи', () => {
       if (this.state.screen === 'preview') {
         this.togglePreviewRecording();
       } else if (this.state.screen === 'recording') {
@@ -418,12 +423,43 @@ const App = {
         else this.startRecording();
       }
     });
-    Hotkeys.bind('r', () => {
+    Hotkeys.bind('r', 'Перезаписать текущий этап', () => {
       if (this.state.screen === 'recording') this.rerecord();
     });
-    Hotkeys.bind('R', () => {
-      if (this.state.screen === 'recording') this.rerecord();
+    // Ctrl+S — сохранить запись
+    Hotkeys.bind('Ctrl+s', 'Сохранить запись', () => {
+      if (this.state.screen === 'recording' || this.state.screen === 'preview' || this.state.screen === 'review') {
+        this.saveRecording();
+      }
     });
+    // G — сетка правила третей
+    Hotkeys.bind('g', 'Сетка правила третей', () => {
+      document.getElementById('grid-toggle')?.click()
+        || document.getElementById('rec-grid-toggle')?.click();
+    });
+    // B — отметить последний дубль как best
+    Hotkeys.bind('b', 'Последний дубль → ⭐ лучший', () => {
+      if (this.state.screen !== 'recording') return;
+      const partNumber = this.state.project?.parts?.[this.state.currentPart]?.part_number;
+      if (!partNumber) return;
+      const list = Takes.list(partNumber);
+      if (!list.length) return;
+      const latest = list[list.length - 1];
+      Takes.toggleBest(partNumber, latest.id);
+      this.renderTakesPanel();
+    });
+    // M — toggle mirror
+    Hotkeys.bind('m', 'Зеркало камеры', () => {
+      const chk = document.getElementById('mirror-toggle-input');
+      if (chk) {
+        chk.checked = !chk.checked;
+        chk.dispatchEvent(new Event('change'));
+      }
+    });
+    // ? — показать help-оверлей со всеми хоткеями
+    Hotkeys.bind('Shift+?', 'Показать список хоткеев', () => this.toggleHotkeysHelp());
+    // Альтернатива: «/» — некоторые раскладки не шлют '?' на Shift+/
+    Hotkeys.bind('/', 'Показать список хоткеев', () => this.toggleHotkeysHelp());
 
     this.initCameraResize();
     this.initCameraDrag();
@@ -1951,6 +1987,57 @@ const App = {
     if (!missingPart) return;
     this.focusMissingScreenCapturePart(missingPart);
     await this.connectCurrentScreenCapture();
+  },
+
+  // === Hotkeys help overlay ===
+  // Рисует список хоткеев из Hotkeys.listDescribed() и показывает оверлей.
+  // Повторный вызов — скрывает.
+  toggleHotkeysHelp() {
+    const overlay = document.getElementById('hotkeys-help-overlay');
+    const listEl = document.getElementById('hotkeys-help-list');
+    const closeBtn = overlay?.querySelector('.hotkeys-help-close');
+    if (!overlay || !listEl) return;
+
+    if (!overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      return;
+    }
+
+    listEl.innerHTML = '';
+    const items = Hotkeys.listDescribed();
+    items.sort((a, b) => a.key.localeCompare(b.key));
+    for (const { key, description } of items) {
+      const kbd = document.createElement('kbd');
+      kbd.textContent = this._formatHotkeyLabel(key);
+      const desc = document.createElement('div');
+      desc.className = 'hotkey-desc';
+      desc.textContent = description;
+      listEl.appendChild(kbd);
+      listEl.appendChild(desc);
+    }
+    overlay.classList.remove('hidden');
+
+    if (closeBtn && !closeBtn._bound) {
+      closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+      closeBtn._bound = true;
+    }
+    // Клик по тёмному фону — закрыть
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.classList.add('hidden');
+    }, { once: true });
+  },
+
+  _formatHotkeyLabel(key) {
+    return key
+      .split('+')
+      .map(p => {
+        if (p === 'Space') return 'Space';
+        if (p === 'ArrowLeft') return '←';
+        if (p === 'ArrowRight') return '→';
+        if (p.length === 1) return p.toUpperCase();
+        return p;
+      })
+      .join(' + ');
   },
 
   // === Audio Meter ===
