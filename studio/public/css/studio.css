@@ -3246,6 +3246,75 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
   border-color: #ff6b00;
 }
 
+/* Кнопка сетки правила третей: стоит под safe-zones-toggle-btn в том же
+   правом верхнем углу телефонного превью. */
+.grid-toggle-btn {
+  position: absolute;
+  top: 40px; right: 8px;
+  z-index: 200;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.grid-toggle-btn.active {
+  background: rgba(126, 212, 255, 0.25);
+  border-color: #7ed4ff;
+}
+
+/* Сетка 3×3 — две горизонтальные и две вертикальные линии по 1/3 и 2/3.
+   По-умолчанию скрыта. Появляется когда родитель (.phone-frame или
+   .rec-canvas-wrapper) имеет класс .show-grid. */
+.rule-of-thirds-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+  display: none;
+}
+.phone-frame.show-grid .rule-of-thirds-grid,
+.rec-canvas-wrapper.show-grid .rule-of-thirds-grid {
+  display: block;
+}
+.rule-of-thirds-grid::before,
+.rule-of-thirds-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* Горизонтальные линии 33% и 66% */
+.rule-of-thirds-grid::before {
+  background:
+    linear-gradient(to bottom,
+      transparent 0,
+      transparent calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% + 0px),
+      transparent calc(33.333% + 0px),
+      transparent calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% + 0px),
+      transparent calc(66.666% + 0px));
+}
+/* Вертикальные линии 33% и 66% */
+.rule-of-thirds-grid::after {
+  background:
+    linear-gradient(to right,
+      transparent 0,
+      transparent calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% - 1px),
+      rgba(255,255,255,0.35) calc(33.333% + 0px),
+      transparent calc(33.333% + 0px),
+      transparent calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% - 1px),
+      rgba(255,255,255,0.35) calc(66.666% + 0px),
+      transparent calc(66.666% + 0px));
+}
+
 /* === Mirror camera button === */
 .camera-window { position: relative; }
 .mirror-toggle-btn {

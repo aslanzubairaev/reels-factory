@@ -221,6 +221,31 @@ const App = {
     bindSafeZonesToggle('safe-zones-toggle');
     bindSafeZonesToggle('rec-safe-zones-toggle');
 
+    // Rule-of-thirds сетка: toggle добавляет класс .show-grid на phone-frame
+    // (preview) и rec-canvas-wrapper (recording). Персистим в localStorage,
+    // чтобы состояние запоминалось между сессиями.
+    const applyGridState = (on) => {
+      document.querySelectorAll('.phone-frame, .rec-canvas-wrapper').forEach((el) => {
+        el.classList.toggle('show-grid', on);
+      });
+      document.querySelectorAll('.grid-toggle-btn').forEach((btn) => {
+        btn.classList.toggle('active', on);
+      });
+    };
+    const savedGrid = localStorage.getItem('studio.gridVisible') === '1';
+    applyGridState(savedGrid);
+    const bindGridToggle = (btnId) => {
+      const btn = document.getElementById(btnId);
+      btn?.addEventListener('click', () => {
+        const currentlyOn = document.querySelector('.phone-frame.show-grid, .rec-canvas-wrapper.show-grid');
+        const next = !currentlyOn;
+        applyGridState(next);
+        localStorage.setItem('studio.gridVisible', next ? '1' : '0');
+      });
+    };
+    bindGridToggle('grid-toggle');
+    bindGridToggle('rec-grid-toggle');
+
     // File browser (правая панель): обновить список + открыть папку в Проводнике
     document.getElementById('output-refresh-btn')?.addEventListener('click', () => this.refreshOutputFiles());
     document.getElementById('output-open-folder-btn')?.addEventListener('click', async () => {
