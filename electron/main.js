@@ -220,6 +220,52 @@ function buildChildEnv() {
   return env;
 }
 
+// Папка для временных вставленных картинок. Создаётся лениво.
+// Путь: %TEMP%\reels-factory-pastes (Windows) или /tmp/reels-factory-pastes.
+// Файлы живут между сессиями (OS очистит при перезагрузке / очистке tmp).
+function getPasteTempDir() {
+  const dir = path.join(os.tmpdir(), 'reels-factory-pastes');
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.warn('Не удалось создать temp-папку для вставленных картинок:', e.message);
+  }
+  return dir;
+}
+
+// Whitelist расширений. Всё остальное (svg, exe и т.д.) отвергаем —
+// картинки должны быть бинарными растрами.
+const ALLOWED_PASTE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']);
+
+// === IPC: сохранить вставленное изображение и вернуть путь ===
+// Renderer шлёт сюда ArrayBuffer и расширение. Мы пишем байты в temp-файл
+// и отдаём абсолютный путь обратно — renderer инжектит его в PTY.
+ipcMain.handle('terminal:save-pasted-image', (_event, buffer, ext) => {
+  try {
+    const cleanExt = String(ext || 'png').toLowerCase().replace(/^\./, '');
+    if (!ALLOWED_PASTE_EXT.has(cleanExt)) {
+      return { error: `Неподдерживаемое расширение: ${cleanExt}` };
+    }
+    const bytes = Buffer.isBuffer(buffer)
+      ? buffer
+      : Buffer.from(new Uint8Array(buffer));
+    if (!bytes.length) return { error: 'Пустой буфер' };
+    if (bytes.length > 50 * 1024 * 1024) {
+      return { error: 'Картинка больше 50MB — откажусь сохранять' };
+    }
+
+    const dir = getPasteTempDir();
+    const ts = Date.now();
+    const rand = Math.random().toString(36).slice(2, 6);
+    const filename = `paste-${ts}-${rand}.${cleanExt}`;
+    const fullPath = path.join(dir, filename);
+    fs.writeFileSync(fullPath, bytes);
+    return { path: fullPath };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
 // === IPC: список backends ===
 ipcMain.handle('terminal:list-backends', () => {
   const config = loadBackendsConfig();

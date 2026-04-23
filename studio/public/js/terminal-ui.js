@@ -78,9 +78,12 @@
       // Drag-handle resize
       this._installResizeHandle();
 
-      // Голосовой ввод (Wispr Flow / любой voice-to-text): пользователь
-      // диктует в отдельное поле, Enter / кнопка → отправляет в активную сессию.
+      // Голосовой ввод (Wispr Flow / любой voice-to-text): по умолчанию
+      // диктовать нужно ПРЯМО в xterm — скрытая xterm-textarea принимает
+      // system input от Wispr Flow. Отдельное поле-буфер — опциональный
+      // fallback, включается кнопкой 🎙 в header'е.
       this._installVoiceBar();
+      this._installVoiceToggle();
     },
 
     _installVoiceBar() {
@@ -114,6 +117,36 @@
       input.addEventListener('input', () => {
         input.style.height = 'auto';
         input.style.height = Math.min(90, input.scrollHeight) + 'px';
+      });
+    },
+
+    // Toggle видимости голосового поля. Persist в localStorage —
+    // если пользователь его включил, при следующем открытии терминала
+    // поле останется видимым.
+    _installVoiceToggle() {
+      const toggleBtn = this.rootEl.querySelector('.terminal-voice-toggle');
+      const bar = document.getElementById('terminal-voice-bar');
+      if (!toggleBtn || !bar) return;
+
+      const apply = (visible) => {
+        bar.classList.toggle('hidden', !visible);
+        toggleBtn.classList.toggle('is-active', visible);
+        toggleBtn.title = visible
+          ? 'Скрыть поле голосового ввода'
+          : 'Показать поле голосового ввода (если Wispr Flow не пишет прямо в терминал)';
+      };
+
+      const saved = localStorage.getItem('terminal.voiceBarVisible') === '1';
+      apply(saved);
+
+      toggleBtn.addEventListener('click', () => {
+        const next = bar.classList.contains('hidden');
+        apply(next);
+        localStorage.setItem('terminal.voiceBarVisible', next ? '1' : '0');
+        // После показа — фокус в textarea, чтобы сразу начать диктовать
+        if (next) document.getElementById('terminal-voice-input')?.focus();
+        // Перефитить терминал (высота изменилась)
+        setTimeout(() => window.TerminalPanel?.fit(), 50);
       });
     },
 
