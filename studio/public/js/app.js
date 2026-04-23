@@ -246,6 +246,18 @@ const App = {
     bindGridToggle('grid-toggle');
     bindGridToggle('rec-grid-toggle');
 
+    // Auto-stop by silence: checkbox + persist в localStorage.
+    // Реальное отслеживание тишины — внутри audio-meter RAF loop.
+    const autoStopToggle = document.getElementById('auto-stop-toggle');
+    if (autoStopToggle) {
+      autoStopToggle.checked = localStorage.getItem('studio.autoStopSilence') === '1';
+      autoStopToggle.addEventListener('change', () => {
+        localStorage.setItem('studio.autoStopSilence', autoStopToggle.checked ? '1' : '0');
+        // сброс счётчика тишины при переключении
+        this._silenceStartedAt = null;
+      });
+    }
+
     // File browser (правая панель): обновить список + открыть папку в Проводнике
     document.getElementById('output-refresh-btn')?.addEventListener('click', () => this.refreshOutputFiles());
     document.getElementById('output-open-folder-btn')?.addEventListener('click', async () => {
@@ -2068,6 +2080,8 @@ const App = {
     const SILENCE_THRESHOLD = 0.01;  // -40dB
     const CLIP_THRESHOLD = 0.92;     // ~ -0.7dB
     const HOLD_MS = 800;
+    const AUTO_STOP_SILENCE_MS = 3000;
+    const AUTO_STOP_GRACE_MS = 1500;  // первые 1.5s после старта не стопаем
 
     const render = (now) => {
       const { rms, peak } = Camera.getAudioLevel();
@@ -2099,6 +2113,40 @@ const App = {
             : isClipping
               ? 'пик!'
               : `${Math.round(level * 100)}%`;
+        }
+      }
+
+      // === Авто-стоп по тишине ===
+      // Работает только когда запись идёт и пользователь включил toggle.
+      // Даём grace-период на начало (пока юзер втягивается), потом
+      // засекаем непрерывную тишину и стопаем по достижении порога.
+      const autoStopEnabled = document.getElementById('auto-stop-toggle')?.checked;
+      const hintEl = document.getElementById('auto-stop-hint');
+      if (autoStopEnabled && this.state.isRecording) {
+        const recStart = this.state.recordingSegmentStartedAt || 0;
+        const inGrace = recStart && (now - recStart < AUTO_STOP_GRACE_MS);
+        if (!inGrace) {
+          if (isSilent) {
+            if (!this._silenceStartedAt) this._silenceStartedAt = now;
+            const silentFor = now - this._silenceStartedAt;
+            if (hintEl) {
+              const remaining = Math.max(0, Math.ceil((AUTO_STOP_SILENCE_MS - silentFor) / 1000));
+              hintEl.textContent = `Тихо уже ${Math.round(silentFor / 100) / 10}с — стоп через ${remaining}с`;
+            }
+            if (silentFor >= AUTO_STOP_SILENCE_MS) {
+              this._silenceStartedAt = null;
+              if (hintEl) hintEl.textContent = 'Остановлено автоматически';
+              this.stopRecording();
+            }
+          } else {
+            this._silenceStartedAt = null;
+            if (hintEl) hintEl.textContent = 'Тишина дольше 3 сек → стоп записи';
+          }
+        }
+      } else {
+        this._silenceStartedAt = null;
+        if (hintEl && !autoStopEnabled) {
+          hintEl.textContent = 'Тишина дольше 3 сек → стоп записи';
         }
       }
 
