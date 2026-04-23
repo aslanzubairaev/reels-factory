@@ -32,16 +32,17 @@
       <select class="terminal-backend-select" id="detached-backend-select" title="Выбор AI-CLI"></select>
       <span class="terminal-status" id="detached-status"></span>
       <div style="flex: 1"></div>
+      <button type="button" class="terminal-btn terminal-voice-toggle" id="detached-voice-toggle" title="Показать/скрыть поле голосового ввода">🎙</button>
       <button type="button" class="terminal-btn" id="detached-restart" title="Перезапустить">↻</button>
       <button type="button" class="terminal-btn" id="detached-clear" title="Очистить">🗑</button>
     </div>
-    <div class="detached-terminal-body" id="detached-terminal-host"></div>
-    <div class="terminal-voice-bar">
+    <div class="detached-terminal-body terminal-host" id="detached-terminal-host"></div>
+    <div class="terminal-voice-bar hidden" id="detached-voice-bar">
       <textarea
         id="detached-voice-input"
         class="terminal-voice-input"
         rows="1"
-        placeholder="🎙 Поле для голосового ввода (Wispr Flow) — Enter отправит в AI-CLI"
+        placeholder="🎙 Поле-буфер для голоса (fallback) — Enter отправит в AI-CLI"
         autocomplete="off"
         spellcheck="false"></textarea>
       <button type="button" id="detached-voice-send" class="terminal-btn terminal-voice-send" title="Отправить (Enter)">➤</button>

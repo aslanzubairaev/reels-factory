@@ -2271,10 +2271,9 @@ body::after {
 
 .preview-recording-panel {
   width: min(100%, 390px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
   padding: 10px;
   border-radius: calc(var(--radius-sm) + 2px);
 }
@@ -2282,8 +2281,18 @@ body::after {
 .preview-recording-status-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.preview-recording-status-row > .preview-recording-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.preview-recording-status-row > .preview-recording-timer {
+  margin-left: auto;
 }
 
 .preview-recording-dot {
@@ -2327,14 +2336,17 @@ body::after {
 }
 
 .preview-recording-actions {
-  display: grid;
-  grid-template-columns: auto auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
 }
 
 .preview-recording-actions .btn {
+  flex: 1 1 140px;
   min-height: 36px;
   padding: 8px 12px;
+  text-align: center;
 }
 
 .recording-readiness {
@@ -3138,9 +3150,12 @@ body::after {
     flex-direction: column;
   }
 
-  .recording-readiness,
-  .preview-recording-actions {
+  .recording-readiness {
     grid-template-columns: 1fr;
+  }
+
+  .preview-recording-actions .btn {
+    flex-basis: 100%;
   }
 
   .phone-frame {
@@ -3259,6 +3274,19 @@ body::after {
   font-weight: 700;
   pointer-events: none;
   z-index: 50;
+}
+
+/* Wispr Flow и другие voice-to-text сканируют DOM и часто не видят
+   скрытую 1x1 xterm-textarea как настоящее поле ввода. Растягиваем её
+   до размера строки (невидимо для глаз, но заметно для DOM-сканеров):
+   opacity:0 прячет курсор/текст, pointer-events:none возвращает клики
+   в xterm canvas (выделение, копирование работают как раньше). */
+.terminal-host .xterm-helper-textarea,
+.detached-terminal-body .xterm-helper-textarea {
+  width: 320px !important;
+  height: 24px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Голосовой ввод (Wispr Flow и подобные voice-to-text) */
@@ -3759,10 +3787,14 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
 .output-file-actions .btn { flex: 1; text-align: center; font-size: 11px; padding: 4px 6px; }
 
 /* === Overlay-телепромптер поверх phone-frame (альтернатива панели справа) === */
+/* Текст читается поверх safe-zones и сетки, но справа освобождаем место под
+   кнопки «Зоны IG» и «Сетка» (они висят в правом верхнем углу phone-frame,
+   z-index 200). z-index overlay поднят выше кнопок чтобы текст всегда был
+   поверх — сам overlay с pointer-events:none, кнопки остаются кликабельны. */
 .teleprompter-overlay {
   position: absolute;
-  left: 16px; right: 16px;
-  z-index: 55;
+  left: 16px; right: 104px;
+  z-index: 210;
   padding: 12px 14px;
   background: rgba(0, 0, 0, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -3787,6 +3819,11 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
   overflow-y: auto;
   pointer-events: auto;
   word-break: break-word;
+  cursor: text;
+}
+.teleprompter-overlay-text:hover {
+  background: rgba(255, 107, 0, 0.08);
+  border-radius: 6px;
 }
 /* Позиция "сверху телефона" — под шапкой Instagram */
 .teleprompter-overlay.teleprompter-overlay-top {

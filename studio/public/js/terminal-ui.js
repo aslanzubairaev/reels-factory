@@ -132,19 +132,31 @@
         bar.classList.toggle('hidden', !visible);
         toggleBtn.classList.toggle('is-active', visible);
         toggleBtn.title = visible
-          ? 'Скрыть поле голосового ввода'
-          : 'Показать поле голосового ввода (если Wispr Flow не пишет прямо в терминал)';
+          ? 'Скрыть поле голосового ввода (Wispr Flow может писать прямо в терминал)'
+          : 'Показать отдельное поле-буфер для голоса (fallback, если Wispr плохо видит xterm)';
       };
 
-      const saved = localStorage.getItem('terminal.voiceBarVisible') === '1';
+      // По умолчанию поле СКРЫТО — Wispr Flow пишет прямо в xterm (скрытая
+      // xterm-textarea растянута CSS до 320x24, DOM-сканеры её видят).
+      // Одноразовая миграция v2: старые пользователи, у кого поле было '1',
+      // получают сброс на скрытое состояние, дальше их выбор уважается.
+      const MIGRATION_KEY = 'terminal.voiceBarMigratedV2';
+      if (!localStorage.getItem(MIGRATION_KEY)) {
+        localStorage.setItem('terminal.voiceBarVisible', '0');
+        localStorage.setItem(MIGRATION_KEY, '1');
+      }
+      const savedRaw = localStorage.getItem('terminal.voiceBarVisible');
+      const saved = savedRaw === null ? false : savedRaw === '1';
       apply(saved);
 
       toggleBtn.addEventListener('click', () => {
         const next = bar.classList.contains('hidden');
         apply(next);
         localStorage.setItem('terminal.voiceBarVisible', next ? '1' : '0');
-        // После показа — фокус в textarea, чтобы сразу начать диктовать
+        // При включении поля — фокус в textarea, при скрытии — обратно в xterm,
+        // чтобы Wispr Flow диктовал в основной терминал.
         if (next) document.getElementById('terminal-voice-input')?.focus();
+        else window.TerminalPanel?.term?.focus();
         // Перефитить терминал (высота изменилась)
         setTimeout(() => window.TerminalPanel?.fit(), 50);
       });

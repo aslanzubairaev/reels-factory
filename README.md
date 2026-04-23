@@ -20,7 +20,7 @@ Open-source multi-agent система для создания Instagram Reels �
 
 ```bash
 # 1. Клонируй
-git clone https://github.com/<username>/reels-factory.git
+git clone https://github.com/aslanzubairaev/reels-factory.git
 cd reels-factory
 
 # 2. Установи зависимости
@@ -175,6 +175,6 @@ MIT — см. `LICENSE`.
 
 ## Автор
 
-Автор: [Aslan](https://github.com/<username>)
+Автор: [Aslan Zubairaev](https://github.com/aslanzubairaev)
 
 Контрибуции и pull requests приветствуются. Для багов — открывай issue с логами.

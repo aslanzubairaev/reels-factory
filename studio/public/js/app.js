@@ -138,6 +138,7 @@ const App = {
       cameraResize: document.getElementById('camera-resize-handle'),
 
       teleprompterText: document.getElementById('teleprompter-text'),
+      teleprompterOverlayText: document.getElementById('preview-teleprompter-overlay-text'),
       editScriptBtn: document.getElementById('edit-script-btn'),
       teleprompterEditor: document.getElementById('teleprompter-editor'),
       teleprompterEditorInput: document.getElementById('teleprompter-editor-input'),
@@ -306,6 +307,7 @@ const App = {
     this.elements.previewDiscardBtn?.addEventListener('click', () => this.discardCurrentTake());
     this.elements.editScriptBtn?.addEventListener('click', () => this.openScriptEditor('preview'));
     this.elements.teleprompterText?.addEventListener('click', () => this.openScriptEditor('preview'));
+    this.elements.teleprompterOverlayText?.addEventListener('click', () => this.openScriptEditor('preview'));
     this.elements.teleprompterEditorInput?.addEventListener('input', (e) => this.updateScriptEditorDraft(e.target.value));
     this.elements.teleprompterEditorInput?.addEventListener('keydown', (e) => this.handleScriptEditorKeydown(e));
     this.elements.teleprompterEditorSave?.addEventListener('click', () => this.saveInlineScriptEdit());
@@ -2282,6 +2284,10 @@ const App = {
       recordBtn.textContent = isRecording ? 'Стоп' : 'REC';
       recordBtn.classList.toggle('is-stop', isRecording);
       recordBtn.disabled = (!!missingCapturePart && !isRecording) || hasPendingTake;
+      // Пока фрагмент не сохранён/не отброшен — прячем REC, чтобы рядом
+      // остались только «Сохранить» и «Игнорировать» (без визуального шума
+      // и без наложения текста на край ноутбука сверху).
+      recordBtn.classList.toggle('hidden', hasPendingTake && !isRecording);
     }
 
     if (readinessEl) {

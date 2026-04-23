@@ -72,9 +72,14 @@
   document.getElementById('detached-restart').addEventListener('click', spawn);
   document.getElementById('detached-clear').addEventListener('click', () => term.clear());
 
-  // Голосовой ввод: диктуешь в textarea, Enter → в pty активной сессии
+  // Голосовой ввод: по умолчанию Wispr Flow пишет прямо в xterm (скрытая
+  // xterm-textarea растянута CSS-ом до 320x24 — DOM-сканеры её видят).
+  // Это нижнее поле-буфер — fallback, включается кнопкой 🎙 в header'е.
   const voiceInput = document.getElementById('detached-voice-input');
   const voiceSend = document.getElementById('detached-voice-send');
+  const voiceBar = document.getElementById('detached-voice-bar');
+  const voiceToggle = document.getElementById('detached-voice-toggle');
+
   const sendVoice = () => {
     const txt = voiceInput.value.trim();
     if (!txt) return;
@@ -95,17 +100,105 @@
     voiceInput.style.height = Math.min(90, voiceInput.scrollHeight) + 'px';
   });
 
-  // Paste-handler на xterm textarea — для clipboard-based voice tools
-  if (term.textarea) {
-    term.textarea.addEventListener('paste', (e) => {
-      const text = e.clipboardData?.getData('text') || '';
-      if (text && sessionId) {
-        e.preventDefault();
-        e.stopPropagation();
-        window.terminalAPI.write(sessionId, text);
-      }
-    });
+  // Тоггл видимости поля-буфера. Общий localStorage-ключ с inline-панелью,
+  // чтобы выбор пользователя был один для обоих окон.
+  const applyVoiceBar = (visible) => {
+    voiceBar.classList.toggle('hidden', !visible);
+    voiceToggle.classList.toggle('is-active', visible);
+    voiceToggle.title = visible
+      ? 'Скрыть поле голосового ввода (Wispr Flow может писать прямо в терминал)'
+      : 'Показать отдельное поле-буфер для голоса (fallback, если Wispr плохо видит xterm)';
+  };
+  const MIGRATION_KEY = 'terminal.voiceBarMigratedV2';
+  if (!localStorage.getItem(MIGRATION_KEY)) {
+    localStorage.setItem('terminal.voiceBarVisible', '0');
+    localStorage.setItem(MIGRATION_KEY, '1');
   }
+  const savedRaw = localStorage.getItem('terminal.voiceBarVisible');
+  applyVoiceBar(savedRaw === '1');
+  voiceToggle.addEventListener('click', () => {
+    const next = voiceBar.classList.contains('hidden');
+    applyVoiceBar(next);
+    localStorage.setItem('terminal.voiceBarVisible', next ? '1' : '0');
+    if (next) voiceInput.focus();
+    else term.focus();
+    setTimeout(() => fit?.fit(), 50);
+  });
+
+  // Инжектит абсолютный путь в PTY. Кавычки — на случай пробелов.
+  // Enter не жмём: пользователь сам допишет фразу ("посмотри этот скриншот").
+  const writePathToPty = (filePath) => {
+    if (!sessionId || !filePath) return;
+    window.terminalAPI.write(sessionId, `"${filePath}"`);
+  };
+
+  // Сохраняет File/Blob через IPC во временный файл и инжектит путь.
+  // Используется для скриншотов из буфера (без file.path) и для drop-файлов,
+  // у которых тоже нет path в web-контексте.
+  const injectFileAsPath = async (file) => {
+    if (!file || !window.terminalAPI?.savePastedImage) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const mimeExt = (file.type || '').split('/')[1];
+      const nameExt = file.name ? file.name.split('.').pop() : '';
+      const ext = (mimeExt || nameExt || 'png').toLowerCase();
+      const res = await window.terminalAPI.savePastedImage(buf, ext);
+      if (res.error) {
+        term.write(`\r\n\x1b[31m[не удалось сохранить файл: ${res.error}]\x1b[0m\r\n`);
+        return;
+      }
+      writePathToPty(res.path);
+    } catch (err) {
+      term.write(`\r\n\x1b[31m[ошибка вставки: ${err.message}]\x1b[0m\r\n`);
+    }
+  };
+
+  // Paste: картинки → временный файл → путь в PTY. Текст — как было,
+  // включая голосовой ввод Wispr Flow через скрытую xterm-textarea.
+  const pasteHandler = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    let imageItem = null;
+    for (const item of items) {
+      if (item.kind === 'file' && item.type?.startsWith('image/')) {
+        imageItem = item;
+        break;
+      }
+    }
+    if (imageItem) {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = imageItem.getAsFile();
+      if (file) injectFileAsPath(file);
+      return;
+    }
+    const text = e.clipboardData?.getData('text') || '';
+    if (text && sessionId) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.terminalAPI.write(sessionId, text);
+    }
+  };
+  term.textarea?.addEventListener('paste', pasteHandler);
+  host.addEventListener('paste', pasteHandler);
+
+  // Drag-and-drop файлов на терминал — путь в PTY. file.path есть для файлов
+  // с диска, для drag-внутри-браузера используется injectFileAsPath.
+  const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+    host.addEventListener(evt, prevent);
+  });
+  host.addEventListener('dragover', () => host.classList.add('terminal-drop-hover'));
+  host.addEventListener('dragleave', () => host.classList.remove('terminal-drop-hover'));
+  host.addEventListener('drop', async (e) => {
+    host.classList.remove('terminal-drop-hover');
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!files.length) return;
+    for (const file of files) {
+      if (file.path) writePathToPty(file.path);
+      else await injectFileAsPath(file);
+    }
+  });
 
   window.addEventListener('resize', () => {
     fit?.fit();

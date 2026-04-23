@@ -41,11 +41,12 @@
       </div>
     </div>
     <div class="terminal-host"></div>
-    <!-- Голосовой ввод (Wispr Flow и подобные): по умолчанию СКРЫТ.
-         Обычно Wispr Flow печатает прямо в xterm через скрытую textarea —
-         поле-буфер нужно только если конкретный voice-to-text не видит xterm
-         как активный input. Переключается кнопкой 🎙 в header'е. -->
-    <div class="terminal-voice-bar hidden" id="terminal-voice-bar">
+    <!-- Голосовой ввод (Wispr Flow и подобные): по умолчанию ВИДИМ.
+         Wispr Flow часто печатает прямо в xterm через скрытую textarea, но
+         многие voice-инструменты не видят xterm как активный input — для них
+         это поле-буфер. Скрыть можно кнопкой 🎙 в header'е (состояние
+         запоминается в localStorage). -->
+    <div class="terminal-voice-bar" id="terminal-voice-bar">
       <textarea
         id="terminal-voice-input"
         class="terminal-voice-input"
