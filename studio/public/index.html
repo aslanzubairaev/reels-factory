@@ -31,19 +31,27 @@
         <button type="button" class="terminal-btn terminal-pos-btn" data-pos="right" title="Прикрепить справа">➡</button>
         <button type="button" class="terminal-btn terminal-pos-btn" data-pos="detach" title="Открыть в отдельном окне">⧉</button>
         <span class="terminal-btn-separator"></span>
+        <!-- Тоггл голосового поля. По умолчанию скрыт: Wispr Flow печатает
+             прямо в терминал. Включить поле-буфер можно если Wispr плохо
+             видит xterm как input. -->
+        <button type="button" class="terminal-btn terminal-voice-toggle" title="Показать/скрыть поле голосового ввода">🎙</button>
         <button type="button" class="terminal-btn terminal-clear" title="Очистить">🗑</button>
         <button type="button" class="terminal-btn terminal-restart" title="Перезапустить">↻</button>
         <button type="button" class="terminal-btn terminal-close" title="Закрыть (Ctrl+`)">✕</button>
       </div>
     </div>
     <div class="terminal-host"></div>
-    <!-- Голосовой ввод (Wispr Flow и подобные): сюда можно диктовать, Enter отправит в AI-CLI -->
-    <div class="terminal-voice-bar">
+    <!-- Голосовой ввод (Wispr Flow и подобные): по умолчанию ВИДИМ.
+         Wispr Flow часто печатает прямо в xterm через скрытую textarea, но
+         многие voice-инструменты не видят xterm как активный input — для них
+         это поле-буфер. Скрыть можно кнопкой 🎙 в header'е (состояние
+         запоминается в localStorage). -->
+    <div class="terminal-voice-bar" id="terminal-voice-bar">
       <textarea
         id="terminal-voice-input"
         class="terminal-voice-input"
         rows="1"
-        placeholder="🎙 Поле для голосового ввода (Wispr Flow) — нажми Enter чтобы отправить"
+        placeholder="🎙 Поле для голосового ввода — Enter отправляет в терминал"
         autocomplete="off"
         spellcheck="false"></textarea>
       <button type="button" id="terminal-voice-send" class="terminal-btn terminal-voice-send" title="Отправить (Enter)">➤</button>

@@ -74,17 +74,15 @@
       // Клик по контейнеру → фокус на terminal (чтобы принимал ввод)
       container.addEventListener('click', () => this.term?.focus());
 
-      // Голосовой ввод (Wispr Flow и подобные): перехват paste → в pty.
-      if (this.term.textarea) {
-        this.term.textarea.addEventListener('paste', (e) => {
-          const text = e.clipboardData?.getData('text') || '';
-          if (text && this.sessionId && window.terminalAPI) {
-            e.preventDefault();
-            e.stopPropagation();
-            window.terminalAPI.write(this.sessionId, text);
-          }
-        });
-      }
+      // Paste: сначала картинки (скриншот из буфера → временный файл → путь
+      // инжектится в PTY), потом — обычный текст (включая голосовой ввод
+      // Wispr Flow через скрытую xterm-textarea).
+      this._installPasteHandler(container);
+
+      // Drag-and-drop файлов на терминал — тот же путь, что и paste картинок:
+      // файл → путь в PTY. Работает для картинок и любых других файлов,
+      // которые пользователь хочет дать Claude «прочитать».
+      this._installDropHandler(container);
 
       // Пользовательский ввод → stdin процесса
       this.term.onData((data) => {
@@ -112,6 +110,112 @@
       }
 
       return this.term;
+    },
+
+    // Вешает paste-обработчик на скрытый textarea xterm и на сам контейнер.
+    // Если в буфере обмена есть картинка — сохраняем её во временный файл
+    // через IPC и инжектируем ПУТЬ в PTY (примерно как drag-drop в обычном
+    // Claude Code: Claude сам прочитает файл через Read tool).
+    // Если картинки нет — работаем как раньше: обычный текст уходит в PTY.
+    _installPasteHandler(container) {
+      const handler = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        // Ищем первый image-item (например image/png от скриншота)
+        let imageItem = null;
+        for (const item of items) {
+          if (item.kind === 'file' && item.type?.startsWith('image/')) {
+            imageItem = item;
+            break;
+          }
+        }
+
+        if (imageItem && window.terminalAPI?.savePastedImage) {
+          e.preventDefault();
+          e.stopPropagation();
+          const file = imageItem.getAsFile();
+          if (!file) return;
+          this._injectFileAsPath(file);
+          return;
+        }
+
+        // Fallback: обычный текст (plain paste) — отдаём в PTY как было.
+        const text = e.clipboardData?.getData('text') || '';
+        if (text && this.sessionId && window.terminalAPI) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.terminalAPI.write(this.sessionId, text);
+        }
+      };
+
+      // xterm держит невидимый textarea для захвата клавиатуры — именно туда
+      // попадают paste-события в системном буфере.
+      this.term?.textarea?.addEventListener('paste', handler);
+      // И на сам контейнер — на случай drag-paste или когда фокус где-то рядом.
+      container.addEventListener('paste', handler);
+    },
+
+    // Drag-and-drop: файлы перетаскиваются прямо на терминал → путь в PTY.
+    _installDropHandler(container) {
+      const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+        container.addEventListener(evt, prevent);
+      });
+
+      container.addEventListener('dragover', () => {
+        container.classList.add('terminal-drop-hover');
+      });
+      container.addEventListener('dragleave', () => {
+        container.classList.remove('terminal-drop-hover');
+      });
+
+      container.addEventListener('drop', async (e) => {
+        container.classList.remove('terminal-drop-hover');
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (!files.length) return;
+
+        // Для файла с диска Electron даёт path напрямую — его можно сразу
+        // инжектировать без копирования. Для картинок-скриншотов (без path)
+        // работает тот же fallback через savePastedImage.
+        for (const file of files) {
+          if (file.path) {
+            this._writePathToPty(file.path);
+          } else {
+            await this._injectFileAsPath(file);
+          }
+        }
+      });
+    },
+
+    async _injectFileAsPath(file) {
+      if (!window.terminalAPI?.savePastedImage) return;
+      try {
+        const buf = await file.arrayBuffer();
+        // Расширение: сначала по MIME-типу, потом по имени файла, иначе png.
+        const mimeExt = (file.type || '').split('/')[1];
+        const nameExt = file.name ? file.name.split('.').pop() : '';
+        const ext = (mimeExt || nameExt || 'png').toLowerCase();
+        const result = await window.terminalAPI.savePastedImage(buf, ext);
+        if (result.error) {
+          this.term?.write(`\r\n\x1b[31m[не удалось сохранить файл: ${result.error}]\x1b[0m\r\n`);
+          return;
+        }
+        this._writePathToPty(result.path);
+      } catch (err) {
+        this.term?.write(`\r\n\x1b[31m[ошибка вставки: ${err.message}]\x1b[0m\r\n`);
+      }
+    },
+
+    // Вставляет абсолютный путь в PTY. Кавычки на случай пробелов.
+    // Enter не нажимаем — пользователь сам допишет вокруг фразу
+    // («посмотри этот скриншот») и отправит. Подсказку в xterm НЕ пишем,
+    // потому что это собьёт PTY echo: shell уже рисует путь в своей строке.
+    _writePathToPty(filePath) {
+      if (!this.sessionId || !window.terminalAPI || !filePath) return;
+      const quoted = `"${filePath}"`;
+      window.terminalAPI.write(this.sessionId, quoted);
     },
 
     /** Подписать панель на новую сессию (после spawn в main). */
