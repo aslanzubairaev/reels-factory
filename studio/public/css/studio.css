@@ -68,6 +68,93 @@ body::after {
   display: none !important;
 }
 
+/* === Audio Level Meter ===
+   Горизонтальная полоска уровня микрофона. Две «пилюли»:
+   fill — текущая RMS-громкость (заливается в реальном времени),
+   peak — пиковый указатель (держится ~0.8s и плавно падает).
+   Маркеры warn (-12dB) и peak (-3dB) помогают визуально контролировать
+   громкость: до warn — безопасно, warn→peak — на грани клиппинга,
+   после peak — клиппинг. */
+.audio-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  user-select: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.audio-meter-icon {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.85;
+}
+.audio-meter-bar {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  min-width: 120px;
+  background: var(--bg-input);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.audio-meter-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--success) 0%, var(--success) 70%, var(--warning) 85%, var(--danger) 100%);
+  border-radius: var(--radius-pill);
+  transition: width 60ms linear, opacity 0.2s;
+}
+.audio-meter-peak {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 0%;
+  width: 3px;
+  background: color-mix(in srgb, var(--text-primary) 85%, transparent);
+  border-radius: 2px;
+  transition: left 0.1s ease-out;
+  opacity: 0;
+}
+.audio-meter.is-active .audio-meter-peak {
+  opacity: 0.85;
+}
+.audio-meter-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
+  pointer-events: none;
+}
+.audio-meter-mark-warn { left: 75%; }
+.audio-meter-mark-peak { left: 92%; }
+.audio-meter-hint {
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.audio-meter.is-silent .audio-meter-icon { opacity: 0.35; }
+.audio-meter.is-clipping {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.audio-meter.is-clipping .audio-meter-icon {
+  animation: audio-meter-clip 0.4s ease-in-out infinite alternate;
+}
+@keyframes audio-meter-clip {
+  from { transform: scale(1); }
+  to { transform: scale(1.2); }
+}
+/* Компактный вариант для recording-экрана — без подписи справа */
+.audio-meter-compact .audio-meter-bar { min-width: 80px; }
+
 /* Плавающий спиннер: показывается поверх всего при загрузке/генерации фона.
    Виден посередине экрана, с подписью. */
 .generate-spinner-floating {

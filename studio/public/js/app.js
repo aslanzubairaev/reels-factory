@@ -1765,6 +1765,10 @@ const App = {
       this.state.screen = 'preview';
       requestAnimationFrame(() => this.syncCameraWindowPlacement());
 
+      // Запускаем обновление audio-meter (preview + recording экраны используют
+      // один RAF-loop, он читает Camera.getAudioLevel() каждый кадр).
+      this.startAudioMeterLoop();
+
     } catch (e) {
       console.error('Failed to enter studio:', e);
       alert('Ошибка: ' + e.message);
@@ -1922,6 +1926,90 @@ const App = {
     if (!missingPart) return;
     this.focusMissingScreenCapturePart(missingPart);
     await this.connectCurrentScreenCapture();
+  },
+
+  // === Audio Meter ===
+  // Читает уровень с микрофона через Camera.getAudioLevel() и перерисовывает
+  // оба метра (preview + recording) пока активна камера. Независимо от того,
+  // идёт ли запись — метр живой всегда, чтобы пользователь сразу видел «слышно
+  // ли меня вообще». Peak-hold: пиковый указатель держится 800мс и плавно падает.
+  startAudioMeterLoop() {
+    this.stopAudioMeterLoop();
+    const meters = [
+      {
+        root: document.getElementById('preview-audio-meter'),
+        fill: document.querySelector('[data-preview-meter-fill]'),
+        peakEl: document.querySelector('[data-preview-meter-peak]'),
+        hint: document.querySelector('[data-preview-meter-hint]')
+      },
+      {
+        root: document.getElementById('rec-audio-meter'),
+        fill: document.querySelector('[data-rec-meter-fill]'),
+        peakEl: document.querySelector('[data-rec-meter-peak]'),
+        hint: null
+      }
+    ].filter(m => m.root);
+
+    if (!meters.length) return;
+
+    const peakHold = { value: 0, lastAt: 0 };
+    const SILENCE_THRESHOLD = 0.01;  // -40dB
+    const CLIP_THRESHOLD = 0.92;     // ~ -0.7dB
+    const HOLD_MS = 800;
+
+    const render = (now) => {
+      const { rms, peak } = Camera.getAudioLevel();
+      // Нелинейное масштабирование: звук воспринимается логарифмически,
+      // так что RMS 0.1 должен выглядеть значимо. Используем sqrt.
+      const level = Math.min(1, Math.sqrt(rms) * 1.4);
+
+      // Peak-hold: если новый peak выше — подхватываем; иначе плавно спадает.
+      const peakDisplay = Math.min(1, Math.sqrt(peak));
+      if (peakDisplay > peakHold.value || now - peakHold.lastAt > HOLD_MS) {
+        peakHold.value = peakDisplay;
+        peakHold.lastAt = now;
+      } else {
+        peakHold.value = Math.max(0, peakHold.value - 0.008);
+      }
+
+      const isSilent = rms < SILENCE_THRESHOLD;
+      const isClipping = peak > CLIP_THRESHOLD;
+
+      for (const m of meters) {
+        if (m.fill) m.fill.style.width = `${level * 100}%`;
+        if (m.peakEl) m.peakEl.style.left = `${peakHold.value * 100}%`;
+        m.root.classList.toggle('is-silent', isSilent);
+        m.root.classList.toggle('is-active', !isSilent);
+        m.root.classList.toggle('is-clipping', isClipping);
+        if (m.hint) {
+          m.hint.textContent = isSilent
+            ? 'тихо'
+            : isClipping
+              ? 'пик!'
+              : `${Math.round(level * 100)}%`;
+        }
+      }
+
+      this._audioMeterRaf = requestAnimationFrame(render);
+    };
+
+    this._audioMeterRaf = requestAnimationFrame(render);
+  },
+
+  stopAudioMeterLoop() {
+    if (this._audioMeterRaf) {
+      cancelAnimationFrame(this._audioMeterRaf);
+      this._audioMeterRaf = null;
+    }
+    // Обнуляем визуально чтобы не оставался последний кадр
+    ['[data-preview-meter-fill]', '[data-rec-meter-fill]'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (el) el.style.width = '0%';
+    });
+    ['[data-preview-meter-peak]', '[data-rec-meter-peak]'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (el) el.style.left = '0%';
+    });
   },
 
   preparePreviewRecordingCanvas(startRendering = false, targetFps = 30) {
@@ -2098,6 +2186,7 @@ const App = {
     Background.show(null);
     Background.stopAllScreenCaptures();
     this.stopPreviewSegmentation();
+    this.stopAudioMeterLoop();
     Camera.stop();
 
     const recPreviewVideo = document.getElementById('rec-preview-video');

@@ -278,6 +278,19 @@
               </div>
               <div id="preview-recording-timer" class="preview-recording-timer">00:00</div>
             </div>
+            <!-- Audio level meter: горизонтальная полоска с пиковым указателем.
+                 Показывает громкость микрофона в реальном времени, помогает
+                 убедиться что микрофон реально ловит звук перед записью. -->
+            <div class="audio-meter" id="preview-audio-meter" title="Уровень звука микрофона">
+              <span class="audio-meter-icon">🎙</span>
+              <div class="audio-meter-bar">
+                <div class="audio-meter-fill" data-preview-meter-fill></div>
+                <div class="audio-meter-peak" data-preview-meter-peak></div>
+                <div class="audio-meter-mark audio-meter-mark-warn"></div>
+                <div class="audio-meter-mark audio-meter-mark-peak"></div>
+              </div>
+              <span class="audio-meter-hint" data-preview-meter-hint>—</span>
+            </div>
             <div id="preview-recording-readiness" class="recording-readiness hidden">
               <div id="preview-recording-readiness-text" class="recording-readiness-text">Окно экрана не подключено.</div>
               <button id="preview-connect-screen-btn" class="btn btn-secondary btn-sm" type="button">Подключить</button>
@@ -398,6 +411,16 @@
             <span id="rec-status-dot" class="rec-status-dot">●</span>
             <span id="rec-status-text">ГОТОВ</span>
             <span id="rec-part-info" class="rec-part-info">Этап 1 / 5</span>
+          </div>
+          <!-- Audio meter в recording-панели: тот же компонент, свои id. -->
+          <div class="audio-meter audio-meter-compact" id="rec-audio-meter" title="Уровень звука микрофона">
+            <span class="audio-meter-icon">🎙</span>
+            <div class="audio-meter-bar">
+              <div class="audio-meter-fill" data-rec-meter-fill></div>
+              <div class="audio-meter-peak" data-rec-meter-peak></div>
+              <div class="audio-meter-mark audio-meter-mark-warn"></div>
+              <div class="audio-meter-mark audio-meter-mark-peak"></div>
+            </div>
           </div>
         </div>
 
