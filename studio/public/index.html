@@ -11,6 +11,18 @@
 </head>
 <body>
 
+  <!--
+    Плавающий индикатор записи: виден поверх всех экранов Studio пока идёт запись.
+    Позволяет навигировать по студии (выходить в Settings, листать проекты)
+    не прерывая запись. Кнопка СТОП выполняет ту же остановку что и обычная.
+  -->
+  <div id="recording-floating-overlay" class="hidden" role="status" aria-live="polite">
+    <span class="rec-float-dot"></span>
+    <span class="rec-float-label">ЗАПИСЬ</span>
+    <span class="rec-float-timer" id="rec-float-timer">00:00</span>
+    <button type="button" id="rec-float-stop" class="rec-float-stop">СТОП</button>
+  </div>
+
   <!-- Плавающая кнопка: открыть терминал (Ctrl+`) -->
   <button type="button" class="terminal-toggle-btn" data-action="toggle-terminal" title="Открыть терминал (Ctrl+`)">
     💻 Терминал

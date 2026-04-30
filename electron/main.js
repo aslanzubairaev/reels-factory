@@ -14,9 +14,10 @@
 const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session, desktopCapturer } = require('electron');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 const os = require('os');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 
 // node-pty с prebuilt бинарниками. Нужен для интерактивных TTY-приложений
 // (claude, codex, cmd.exe с prompt) — они проверяют isatty и отказываются
@@ -63,6 +64,100 @@ function waitForServer(url, timeoutMs = 30000) {
     };
     poll();
   });
+}
+
+// Проверяет, свободен ли порт. Резолвится в true/false.
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once('error', () => resolve(false));
+    tester.once('listening', () => tester.close(() => resolve(true)));
+    tester.listen(port, '127.0.0.1');
+  });
+}
+
+// Находит PID процесса, слушающего порт на Windows.
+// Возвращает число PID или null.
+function findPidOnPort(port) {
+  if (process.platform !== 'win32') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile('netstat', ['-ano'], { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) return resolve(null);
+      const lines = stdout.split(/\r?\n/);
+      for (const line of lines) {
+        // Ищем строку вида:  TCP    0.0.0.0:3000           ...   LISTENING       12345
+        if (!/LISTENING/.test(line)) continue;
+        const parts = line.trim().split(/\s+/);
+        const local = parts[1] || '';
+        if (!local.endsWith(`:${port}`)) continue;
+        const pid = parseInt(parts[parts.length - 1], 10);
+        if (Number.isFinite(pid)) return resolve(pid);
+      }
+      resolve(null);
+    });
+  });
+}
+
+// Возвращает путь исполняемого файла процесса по PID (Windows). null если не найден.
+function getProcessPath(pid) {
+  if (process.platform !== 'win32') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-Command', `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).Path`],
+      { windowsHide: true },
+      (err, stdout) => {
+        if (err) return resolve(null);
+        const p = (stdout || '').trim();
+        resolve(p || null);
+      }
+    );
+  });
+}
+
+function killPid(pid) {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => resolve());
+    } else {
+      try { process.kill(pid, 'SIGKILL'); } catch (_) {}
+      resolve();
+    }
+  });
+}
+
+// Если порт занят НАШИМ собственным стейл-electron от прошлого запуска — убиваем.
+// Если занят кем-то другим — кидаем понятную ошибку, не трогаем чужой процесс.
+async function ensurePortFree(port) {
+  if (await isPortFree(port)) return;
+
+  const pid = await findPidOnPort(port);
+  if (!pid || pid === process.pid) {
+    throw new Error(`Порт ${port} занят, но процесс не определён. Освободи порт вручную.`);
+  }
+
+  const procPath = await getProcessPath(pid);
+  const projectRoot = path.resolve(__dirname, '..').toLowerCase();
+  const isOurs = procPath && procPath.toLowerCase().startsWith(projectRoot) &&
+    /electron\.exe$/i.test(procPath);
+
+  if (!isOurs) {
+    throw new Error(
+      `Порт ${port} занят процессом PID ${pid}` +
+      (procPath ? ` (${procPath})` : '') +
+      `.\nЭто не Reels Factory — освободи порт вручную или измени PORT в .env.`
+    );
+  }
+
+  console.warn(`[startup] Порт ${port} занят стейл-процессом Reels Factory (PID ${pid}). Убиваю.`);
+  await killPid(pid);
+
+  // Ждём до 5 сек пока ОС реально освободит сокет (TIME_WAIT может задержать)
+  for (let i = 0; i < 20; i++) {
+    if (await isPortFree(port)) return;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  throw new Error(`Порт ${port} не освободился после убийства стейл-процесса PID ${pid}.`);
 }
 
 function startServer() {
@@ -424,6 +519,7 @@ function killAllTerminalSessions() {
 
 app.whenReady().then(async () => {
   try {
+    await ensurePortFree(PORT);
     await startServer();
   } catch (e) {
     dialog.showErrorBox('Не удалось запустить Studio', e.message);

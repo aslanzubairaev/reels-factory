@@ -186,7 +186,11 @@ const App = {
       reviewBackBtn: document.getElementById('review-back-btn'),
       reviewPlayBtn: document.getElementById('review-play-btn'),
       reviewSaveBtn: document.getElementById('review-save-btn'),
-      reviewRedoBtn: document.getElementById('review-redo-btn')
+      reviewRedoBtn: document.getElementById('review-redo-btn'),
+
+      recordingFloatingOverlay: document.getElementById('recording-floating-overlay'),
+      recFloatTimer: document.getElementById('rec-float-timer'),
+      recFloatStop: document.getElementById('rec-float-stop')
     };
   },
 
@@ -302,6 +306,10 @@ const App = {
     this.elements.builderRemoveUploadBtn?.addEventListener('click', () => this.removeBuilderBackground());
     this.elements.exitStudioBtn?.addEventListener('click', () => this.exitStudioToSettings());
     this.elements.recordBtn?.addEventListener('click', () => this.togglePreviewRecording());
+    // Плавающий индикатор записи: кнопка СТОП должна остановить запись из любого экрана
+    this.elements.recFloatStop?.addEventListener('click', () => {
+      if (this.state.isRecording) this.stopRecording();
+    });
     this.elements.previewConnectScreenBtn?.addEventListener('click', () => this.connectMissingScreenCapture());
     this.elements.previewSaveBtn?.addEventListener('click', () => this.saveRecording());
     this.elements.previewDiscardBtn?.addEventListener('click', () => this.discardCurrentTake());
@@ -648,6 +656,10 @@ const App = {
   },
 
   async returnToProjectPicker() {
+    if (this.state.isRecording) {
+      alert('Идёт запись. Сначала остановите запись, потом возвращайтесь к списку проектов.');
+      return;
+    }
     const currentProjectName = this.state.builderProjectName || '';
     if (!currentProjectName) {
       if (this.elements.projectSelect) this.elements.projectSelect.value = '';
@@ -673,6 +685,14 @@ const App = {
     const currentProjectName = this.state.builderProjectName || '';
 
     if (nextProjectName === currentProjectName) {
+      return;
+    }
+
+    // Пока идёт запись — смена проекта запрещена: это сбросит state.projectName
+    // и сломает финализацию текущего сегмента в Recorder.onSegmentReady.
+    if (this.state.isRecording) {
+      this.elements.projectSelect.value = currentProjectName;
+      alert('Идёт запись. Сначала остановите запись, потом меняйте проект.');
       return;
     }
 
@@ -1636,10 +1656,9 @@ const App = {
 
   openScriptEditor(source = 'preview') {
     if (!this.state.project?.parts?.length) return;
-    if (this.state.isRecording) {
-      alert('Сначала остановите запись, затем редактируйте текст.');
-      return;
-    }
+    // Во время записи разрешаем открыть редактор (для демо UI), но сохранение
+    // изменений будет заблокировано в saveInlineScriptEdit — это защищает
+    // активную запись от рассогласования с изменённым проектом.
 
     const part = this.state.project.parts[this.state.currentPart];
     if (!part) return;
@@ -1715,6 +1734,16 @@ const App = {
     if (!this.state.projectName || !this.state.project?.parts?.length) return;
     const part = this.state.project.parts[this.state.currentPart];
     if (!part) return;
+
+    // Защита: пока идёт запись, нельзя писать изменения в JSON проекта —
+    // это рассогласует state и потенциально сломает финализацию сегмента.
+    // Редактор остаётся открытым, юзер видит свой draft, но запись не идёт.
+    if (this.state.isRecording) {
+      this.state.scriptEditorStatus = 'Идёт запись — изменения не сохранены. Остановите запись, чтобы сохранить.';
+      this.state.scriptEditorStatusTone = 'warning';
+      this.renderScriptEditor();
+      return;
+    }
 
     this.state.scriptEditorSaving = true;
     this.state.scriptEditorStatus = '';
@@ -2215,6 +2244,17 @@ const App = {
     if (this.elements.previewRecordingHint && !this.state.recordingDone) {
       this.elements.previewRecordingHint.textContent = value;
     }
+    // Плавающий индикатор записи показывает тот же таймер на любом экране
+    if (this.elements.recFloatTimer) {
+      this.elements.recFloatTimer.textContent = value;
+    }
+  },
+
+  // Плавающий индикатор: показ/скрытие. Виден пока идёт запись.
+  setRecordingFloatingOverlay(visible) {
+    const overlay = this.elements.recordingFloatingOverlay;
+    if (!overlay) return;
+    overlay.classList.toggle('hidden', !visible);
   },
 
   startRecordingElapsed({ reset = false } = {}) {
@@ -2338,35 +2378,42 @@ const App = {
   async exitStudioToSettings() {
     await this.saveStudioPreferences();
 
-    if (Recorder.hasActiveSession() || Recorder.hasCapturedData()) {
-      this.applyRecordingPhase(RecordingState.PHASES.IDLE);
-      this.stopPartTimer();
-      this.resetRecordingElapsed();
-      this.stopAutoscroll();
-      Recorder.discard();
-      this.updatePreviewRecordingUI();
-    }
+    // Если идёт активная запись — НЕ убиваем камеру/recorder/canvas/screen-capture.
+    // Просто переключаем UI в settings, запись продолжается, плавающий индикатор
+    // остаётся виден поверх всех экранов с кнопкой СТОП.
+    const recordingActive = this.state.isRecording;
 
-    Canvas.stopRendering();
-    this.previewCanvasRendering = false;
-    Background.show(null);
-    Background.stopAllScreenCaptures();
-    this.stopPreviewSegmentation();
-    this.stopAudioMeterLoop();
-    Takes.clear();
-    Camera.stop();
+    if (!recordingActive) {
+      if (Recorder.hasActiveSession() || Recorder.hasCapturedData()) {
+        this.applyRecordingPhase(RecordingState.PHASES.IDLE);
+        this.stopPartTimer();
+        this.resetRecordingElapsed();
+        this.stopAutoscroll();
+        Recorder.discard();
+        this.updatePreviewRecordingUI();
+      }
 
-    const recPreviewVideo = document.getElementById('rec-preview-video');
-    if (recPreviewVideo) {
-      recPreviewVideo.pause();
-      recPreviewVideo.classList.add('hidden');
-      recPreviewVideo.src = '';
-    }
+      Canvas.stopRendering();
+      this.previewCanvasRendering = false;
+      Background.show(null);
+      Background.stopAllScreenCaptures();
+      this.stopPreviewSegmentation();
+      this.stopAudioMeterLoop();
+      Takes.clear();
+      Camera.stop();
 
-    if (this.elements.reviewVideo) {
-      this.elements.reviewVideo.pause();
-      this.elements.reviewVideo.removeAttribute('src');
-      this.elements.reviewVideo.load();
+      const recPreviewVideo = document.getElementById('rec-preview-video');
+      if (recPreviewVideo) {
+        recPreviewVideo.pause();
+        recPreviewVideo.classList.add('hidden');
+        recPreviewVideo.src = '';
+      }
+
+      if (this.elements.reviewVideo) {
+        this.elements.reviewVideo.pause();
+        this.elements.reviewVideo.removeAttribute('src');
+        this.elements.reviewVideo.load();
+      }
     }
 
     this.elements.loadingOverlay.classList.add('hidden');
@@ -2375,6 +2422,13 @@ const App = {
     this.elements.reviewScreen?.classList.add('hidden');
     this.elements.settingsScreen.classList.remove('hidden');
     this.state.screen = 'settings';
+
+    if (recordingActive) {
+      // Запись продолжается. Не перезагружаем проект — это сбросит state.projectName
+      // и сломает Recorder.onSegmentReady. Просто оставляем UI в settings, builder
+      // остаётся в текущем проекте.
+      return;
+    }
 
     if (this.state.projectName) {
       this.elements.projectSelect.value = this.state.projectName;
@@ -3150,6 +3204,7 @@ const App = {
       });
       this.transitionRecordingPhase(RecordingState.EVENTS.START);
       this.startRecordingElapsed({ reset: true });
+      this.setRecordingFloatingOverlay(true);
     } catch (e) {
       console.error('Failed to start recording:', e);
       Canvas.stopRendering();
@@ -3178,6 +3233,21 @@ const App = {
       this.previewCanvasRendering = false;
       this.updatePreviewRecordingUI();
       this.updateRecordingUI();
+      this.setRecordingFloatingOverlay(false);
+
+      // Если запись финализирована из settings (юзер ушёл туда не прерывая
+      // запись) — переключаемся обратно на preview-screen, чтобы юзер увидел
+      // стандартные кнопки «Сохранить» / «Игнорировать». НЕ делать тут
+      // Takes.clear() / Camera.stop() / Background.stopAllScreenCaptures —
+      // это убьёт recordedBlob и юзер потеряет запись.
+      if (this.state.screen === 'settings' && Recorder.hasCapturedData()) {
+        this.elements.settingsScreen.classList.add('hidden');
+        this.elements.recordingScreen.classList.add('hidden');
+        this.elements.reviewScreen?.classList.add('hidden');
+        this.elements.previewScreen.classList.remove('hidden');
+        this.state.screen = 'preview';
+        this.updatePreviewRecordingUI();
+      }
     }
   },
 
