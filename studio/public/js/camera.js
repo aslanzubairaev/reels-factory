@@ -30,7 +30,23 @@ const Camera = {
     };
   },
 
-  async start(videoDeviceId, audioDeviceId, quality) {
+  // rawAudio=true отключает echo/noise/autoGain — нужно для качественных
+  // микрофонов (петличка, USB), у которых обработка Chrome портит звук
+  // («пещерный» эффект, обрезка высоких). Для встроенного мика ноутбука
+  // оставляй обработку включённой (rawAudio=false, по умолчанию).
+  async start(videoDeviceId, audioDeviceId, quality, rawAudio = false) {
+    const audioConstraints = {
+      deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined
+    };
+    if (rawAudio) {
+      audioConstraints.echoCancellation = false;
+      audioConstraints.noiseSuppression = false;
+      audioConstraints.autoGainControl = false;
+    } else {
+      audioConstraints.echoCancellation = true;
+      audioConstraints.noiseSuppression = true;
+    }
+
     const constraints = {
       video: {
         deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
@@ -38,11 +54,7 @@ const Camera = {
         height: { ideal: quality === '1080p' ? 1080 : 720 },
         frameRate: { ideal: 60, max: 60 }
       },
-      audio: {
-        deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
-        echoCancellation: true,
-        noiseSuppression: true
-      }
+      audio: audioConstraints
     };
 
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);

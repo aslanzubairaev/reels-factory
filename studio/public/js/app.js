@@ -127,6 +127,7 @@ const App = {
       cameraSelect: document.getElementById('camera-select'),
       micSelect: document.getElementById('mic-select'),
       qualitySelect: document.getElementById('quality-select'),
+      audioRawCheckbox: document.getElementById('audio-raw-checkbox'),
       cameraShapeSelect: document.getElementById('camera-shape-select'),
       themeToggle: document.getElementById('theme-toggle'),
       enterBtn: document.getElementById('enter-studio-btn'),
@@ -1803,6 +1804,27 @@ const App = {
     } catch (e) {
       console.error('Failed to enumerate devices:', e);
     }
+
+    // Восстанавливаем выбор «сырой звук» из localStorage и привязываем change.
+    const audioRawCb = this.elements.audioRawCheckbox;
+    if (audioRawCb) {
+      audioRawCb.checked = this.getAudioRawPreference();
+      audioRawCb.addEventListener('change', () => {
+        try {
+          localStorage.setItem('studio.audio_raw', audioRawCb.checked ? '1' : '0');
+        } catch (e) { /* localStorage может быть недоступен */ }
+      });
+    }
+  },
+
+  // true — отключить echoCancellation/noiseSuppression/autoGainControl Chrome.
+  // Применяется при следующем входе в студию (Camera.start).
+  getAudioRawPreference() {
+    try {
+      return localStorage.getItem('studio.audio_raw') === '1';
+    } catch (e) {
+      return false;
+    }
   },
 
   async enterStudio() {
@@ -1842,7 +1864,8 @@ const App = {
       await Camera.start(
         this.elements.cameraSelect.value,
         this.elements.micSelect.value,
-        this.state.quality
+        this.state.quality,
+        this.getAudioRawPreference()
       );
 
       this.elements.loadingText.textContent = 'Загрузка фонов...';

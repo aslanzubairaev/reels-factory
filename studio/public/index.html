@@ -207,6 +207,20 @@
                 </select>
               </div>
 
+              <!--
+                Сырой звук без обработки браузера. Полезно для качественных
+                микрофонов (петличка, USB-мик): встроенное шумоподавление
+                Chrome убирает высокие частоты и добавляет «пещерный» эффект.
+                Для встроенного микрофона ноутбука галочку лучше НЕ ставить.
+              -->
+              <div class="toolbar-group toolbar-group-checkbox">
+                <label class="audio-raw-label">
+                  <input type="checkbox" id="audio-raw-checkbox">
+                  <span>Сырой звук (для внешнего микрофона)</span>
+                </label>
+                <p class="audio-raw-hint">Отключает шумоподавление Chrome. Включай для петлички или USB-микрофона.</p>
+              </div>
+
               <button id="enter-studio-btn" class="btn btn-primary studio-enter-btn" disabled>Войти в студию</button>
             </div>
           </aside>
