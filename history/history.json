@@ -39,6 +39,16 @@
       "total_duration": 62,
       "source_mode": "classic",
       "status": "completed"
+    },
+    {
+      "name": "2026-04-27_factory-intro-1",
+      "date": "2026-04-27",
+      "idea": "✅ УТВЕРЖДЕНО",
+      "language": "ru",
+      "parts_count": 5,
+      "total_duration": 0,
+      "source_mode": "classic",
+      "status": "recorded"
     }
   ]
 }

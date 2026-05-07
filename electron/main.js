@@ -11,13 +11,21 @@
  *   — Приложение закрывается полностью.
  */
 
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session, desktopCapturer, webContents } = require('electron');
 const path = require('path');
 const http = require('http');
 const net = require('net');
 const fs = require('fs');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
+
+// Recording is rendered by a canvas in the Studio window. If Chromium throttles
+// an occluded/background window, the saved video freezes while the demo window
+// is active, so keep renderer timers/RAF alive during recording.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // node-pty с prebuilt бинарниками. Нужен для интерактивных TTY-приложений
 // (claude, codex, cmd.exe с prompt) — они проверяют isatty и отказываются
@@ -36,6 +44,8 @@ const BACKENDS_CONFIG = path.join(__dirname, 'ai-backends.json');
 
 let serverProcess = null;
 let mainWindow = null;
+const studioWindows = new Set();
+const screenGuideOverlays = new Map();
 
 // === Терминал-сессии ===
 // Держим мапу { sessionId → { proc, backendId } }. Renderer отличает события по sessionId.
@@ -63,6 +73,26 @@ function waitForServer(url, timeoutMs = 30000) {
       }
     };
     poll();
+  });
+}
+
+function probeStudioServer(url, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        if (body.length < 4096) body += chunk;
+      });
+      res.on('end', () => {
+        resolve(Boolean(res.statusCode && res.statusCode < 500 && /Reels Factory/i.test(body)));
+      });
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.on('error', () => resolve(false));
   });
 }
 
@@ -204,13 +234,137 @@ function stopServer() {
   serverProcess = null;
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+function getScreenGuideHtml() {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    .frame {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(255, 107, 0, 0.95);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.72), 0 0 0 1px rgba(0,0,0,0.55);
+      box-sizing: border-box;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+    .fit .frame { border-color: rgba(255,255,255,0.9); }
+    .label, .hint {
+      position: absolute;
+      left: 8px;
+      padding: 4px 7px;
+      border-radius: 4px;
+      background: rgba(10,10,20,0.86);
+      color: white;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .label { top: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; }
+    .hint { bottom: 8px; font-size: 11px; opacity: 0.82; }
+    .zone { position: absolute; border: 1px dashed rgba(255,255,255,0.55); background: rgba(255,107,0,0.08); box-sizing: border-box; }
+    .zone-top { left: 0; top: 0; width: 100%; height: 7.8125%; }
+    .zone-right { right: 0; top: 39.0625%; width: 15%; height: 39.0625%; }
+    .zone-bottom { left: 0; bottom: 0; width: 100%; height: 19.7917%; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="zone zone-top"></div>
+    <div class="zone zone-right"></div>
+    <div class="zone zone-bottom"></div>
+    <div class="label">PHONE FRAME</div>
+    <div class="hint">Alt+click center / Alt+drag move / Alt+S safe zoom</div>
+  </div>
+</body>
+</html>`;
+}
+
+function getOrCreateScreenGuideOverlay(ownerWindow) {
+  const ownerId = ownerWindow.id;
+  const existing = screenGuideOverlays.get(ownerId);
+  if (existing && !existing.isDestroyed()) return existing;
+
+  const overlay = new BrowserWindow({
+    parent: ownerWindow,
+    width: 300,
+    height: 500,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: false,
+    focusable: false,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      backgroundThrottling: false
+    }
+  });
+  overlay.setIgnoreMouseEvents(true, { forward: true });
+  overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(getScreenGuideHtml())}`);
+
+  screenGuideOverlays.set(ownerId, overlay);
+  ownerWindow.on('minimize', () => {
+    if (!overlay.isDestroyed()) overlay.hide();
+  });
+  ownerWindow.once('closed', () => {
+    screenGuideOverlays.delete(ownerId);
+    if (!overlay.isDestroyed()) overlay.destroy();
+  });
+  overlay.on('closed', () => screenGuideOverlays.delete(ownerId));
+  return overlay;
+}
+
+function updateScreenGuideOverlay(event, payload = {}) {
+  const ownerWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!ownerWindow || ownerWindow.isDestroyed()) return;
+
+  if (!payload.enabled) {
+    for (const [id, overlay] of screenGuideOverlays) {
+      screenGuideOverlays.delete(id);
+      if (!overlay.isDestroyed()) overlay.destroy();
+    }
+    return;
+  }
+
+  if (!ownerWindow.isFocused() || ownerWindow.isMinimized()) return;
+
+  const rect = payload.rect || {};
+  const width = Math.max(80, Math.round(rect.width || 0));
+  const height = Math.max(120, Math.round(rect.height || 0));
+  if (!width || !height) return;
+
+  const content = ownerWindow.getContentBounds();
+  const bounds = {
+    x: Math.round(content.x + (rect.x || 0)),
+    y: Math.round(content.y + (rect.y || 0)),
+    width,
+    height
+  };
+
+  const overlay = getOrCreateScreenGuideOverlay(ownerWindow);
+  overlay.setBounds(bounds, false);
+  overlay.webContents.executeJavaScript(
+    `document.body.classList.toggle('fit', ${payload.fitMode ? 'true' : 'false'});`,
+    true
+  ).catch(() => {});
+  if (!overlay.isVisible()) overlay.showInactive();
+}
+
+function createWindow(options = {}) {
+  const win = new BrowserWindow({
+    width: options.width || 1400,
+    height: options.height || 900,
     minWidth: 1100,
     minHeight: 720,
-    title: 'Reels Factory Studio',
+    title: options.title || 'Reels Factory Studio',
     backgroundColor: '#0a0a14',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
@@ -219,15 +373,28 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       // разрешаем запрос media (camera, microphone, display) в loopback-контексте
-      webSecurity: true
+      webSecurity: true,
+      backgroundThrottling: false
     }
   });
+  studioWindows.add(win);
+  if (!mainWindow || mainWindow.isDestroyed()) mainWindow = win;
 
   // Минимальное меню: только Reload / DevTools / Quit.
   const menuTemplate = [
     {
       label: 'Studio',
       submenu: [
+        {
+          label: 'Новое окно Studio',
+          accelerator: 'CommandOrControl+N',
+          click: () => createWindow({
+            title: 'Reels Factory Studio - Demo',
+            width: 1200,
+            height: 820
+          })
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
@@ -247,24 +414,27 @@ function createWindow() {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
-  mainWindow.loadURL(STUDIO_URL);
+  win.webContents.on('page-title-updated', (event) => {
+    if (options.title) event.preventDefault();
+  });
+  win.loadURL(STUDIO_URL);
 
   // Логируем ошибки renderer в main-лог (без авто-открытия DevTools).
   // Открыть DevTools можно вручную через меню Studio → Toggle Developer Tools
   // или горячую клавишу F12 / Ctrl+Shift+I.
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
     if (level === 3) {
       console.error(`[renderer:ERROR] ${message} (${sourceId}:${line})`);
     } else if (level === 2) {
       console.warn(`[renderer:WARN] ${message}`);
     }
   });
-  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+  win.webContents.on('render-process-gone', (_e, details) => {
     console.error('[renderer] render-process-gone:', details);
   });
 
   // Внешние ссылки — в системный браузер, а не в окне приложения.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(STUDIO_URL)) {
       shell.openExternal(url);
       return { action: 'deny' };
@@ -272,7 +442,12 @@ function createWindow() {
     return { action: 'allow' };
   });
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  win.on('closed', () => {
+    studioWindows.delete(win);
+    if (mainWindow === win) mainWindow = [...studioWindows][0] || null;
+  });
+
+  return win;
 }
 
 // === Загрузка AI-backends конфига ===
@@ -362,6 +537,8 @@ ipcMain.handle('terminal:save-pasted-image', (_event, buffer, ext) => {
 });
 
 // === IPC: список backends ===
+ipcMain.on('screen-guide:update', updateScreenGuideOverlay);
+
 ipcMain.handle('terminal:list-backends', () => {
   const config = loadBackendsConfig();
   const result = [];
@@ -519,8 +696,14 @@ function killAllTerminalSessions() {
 
 app.whenReady().then(async () => {
   try {
-    await ensurePortFree(PORT);
-    await startServer();
+    if (await isPortFree(PORT)) {
+      await startServer();
+    } else if (await probeStudioServer(STUDIO_URL)) {
+      console.log(`[startup] Reusing existing Studio server at ${STUDIO_URL}`);
+    } else {
+      await ensurePortFree(PORT);
+      await startServer();
+    }
   } catch (e) {
     dialog.showErrorBox('Не удалось запустить Studio', e.message);
     app.quit();
@@ -550,13 +733,18 @@ app.whenReady().then(async () => {
         thumbnailDataUrl: s.thumbnail?.toDataURL?.() || null
       }));
 
-      if (!mainWindow || mainWindow.isDestroyed()) {
+      const requesterContents = request.frame ? webContents.fromFrame(request.frame) : null;
+      const pickerWindow = requesterContents
+        ? BrowserWindow.fromWebContents(requesterContents)
+        : (BrowserWindow.getFocusedWindow() || mainWindow);
+
+      if (!pickerWindow || pickerWindow.isDestroyed()) {
         callback({ video: sources[0] });
         return;
       }
 
       // Показываем picker в renderer и ждём выбора
-      const pickedId = await mainWindow.webContents.executeJavaScript(
+      const pickedId = await pickerWindow.webContents.executeJavaScript(
         `window.__pickScreenSource(${JSON.stringify(payload)})`
       );
       if (!pickedId) {

@@ -460,13 +460,17 @@ const Background = {
       const vh = video.videoHeight || 1080;
       const ctx = canvas.getContext('2d');
       const pan = (typeof ScreenPan !== 'undefined')
-        ? ScreenPan.computeCrop(vw, vh, canvas.width, canvas.height)
+        ? (ScreenPan.mode === 'contain'
+            ? ScreenPan.computeContainRect(vw, vh, canvas.width, canvas.height)
+            : ScreenPan.computeCrop(vw, vh, canvas.width, canvas.height))
         : null;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       try {
-        if (pan) {
+        if (pan && typeof pan.sx === 'number') {
           ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, canvas.width, canvas.height);
+        } else if (pan) {
+          ctx.drawImage(video, 0, 0, vw, vh, pan.dx, pan.dy, pan.dw, pan.dh);
         } else {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         }

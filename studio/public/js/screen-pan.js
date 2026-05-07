@@ -29,6 +29,10 @@ const ScreenPan = {
   MAX_SCALE: 4.0,
 
   _listeners: new Set(),
+  guideEnabled: (() => {
+    try { return localStorage.getItem('screenPanGuideEnabled') !== '0'; }
+    catch (_) { return true; }
+  })(),
 
   onChange(cb) {
     this._listeners.add(cb);
@@ -39,6 +43,7 @@ const ScreenPan = {
     for (const cb of this._listeners) {
       try { cb(this); } catch (_) {}
     }
+    this._updateGuideOverlay();
   },
 
   reset() {
@@ -51,11 +56,13 @@ const ScreenPan = {
   setMode(m) {
     if (this.mode === m) return;
     this.mode = m;
+    this._normalizeOffsets();
     this._emit();
   },
 
   setScale(s) {
     this.scale = Math.max(this.MIN_SCALE, Math.min(this.MAX_SCALE, s));
+    this._normalizeOffsets();
     this._emit();
   },
 
@@ -69,7 +76,57 @@ const ScreenPan = {
     // Конвертируем перемещение в source-координаты.
     this.offsetX = Math.max(0, Math.min(1, this.offsetX + dx));
     this.offsetY = Math.max(0, Math.min(1, this.offsetY + dy));
+    this._normalizeOffsets();
     this._emit();
+  },
+
+  setCenter(x, y) {
+    this.offsetX = Math.max(0, Math.min(1, x));
+    this.offsetY = Math.max(0, Math.min(1, y));
+    this._normalizeOffsets();
+    this._emit();
+  },
+
+  zoomAt(delta, x, y) {
+    this.offsetX = Math.max(0, Math.min(1, x));
+    this.offsetY = Math.max(0, Math.min(1, y));
+    this.setScale(this.scale * delta);
+  },
+
+  _getContainRenderSize(srcW, srcH, dstW = 1080, dstH = 1920) {
+    const srcA = srcW / srcH;
+    const dstA = dstW / dstH;
+    let baseDw, baseDh;
+    if (srcA > dstA) { baseDw = dstW; baseDh = dstW / srcA; }
+    else { baseDh = dstH; baseDw = dstH * srcA; }
+    return { dw: baseDw * this.scale, dh: baseDh * this.scale };
+  },
+
+  _clampContainOffsets(srcW, srcH, dstW = 1080, dstH = 1920, offsetX = this.offsetX, offsetY = this.offsetY) {
+    const { dw, dh } = this._getContainRenderSize(srcW, srcH, dstW, dstH);
+    const clampAxis = (offset, rendered, dst) => {
+      if (rendered <= dst + 0.5) return 0.5;
+      const min = dst / (2 * rendered);
+      const max = 1 - min;
+      return Math.max(min, Math.min(max, offset));
+    };
+    return {
+      x: clampAxis(offsetX, dw, dstW),
+      y: clampAxis(offsetY, dh, dstH)
+    };
+  },
+
+  _normalizeOffsets() {
+    if (this.mode !== 'contain') {
+      this.offsetX = Math.max(0, Math.min(1, this.offsetX));
+      this.offsetY = Math.max(0, Math.min(1, this.offsetY));
+      return;
+    }
+    const sourceW = Math.max(1, window.innerWidth || 1920);
+    const sourceH = Math.max(1, window.innerHeight || 1080);
+    const clamped = this._clampContainOffsets(sourceW, sourceH, 1080, 1920);
+    this.offsetX = clamped.x;
+    this.offsetY = clamped.y;
   },
 
   /**
@@ -141,22 +198,255 @@ const ScreenPan = {
    */
   computeContainRect(srcW, srcH, dstW = 1080, dstH = 1920) {
     if (!srcW || !srcH) return { dx: 0, dy: 0, dw: dstW, dh: dstH };
-    const srcA = srcW / srcH;
-    const dstA = dstW / dstH;
-    let baseDw, baseDh;
-    if (srcA > dstA) { baseDw = dstW; baseDh = dstW / srcA; }
-    else { baseDh = dstH; baseDw = dstH * srcA; }
-    const dw = baseDw * this.scale;
-    const dh = baseDh * this.scale;
-    const dx = dstW / 2 - dw * this.offsetX;
-    const dy = dstH / 2 - dh * this.offsetY;
+    const { dw, dh } = this._getContainRenderSize(srcW, srcH, dstW, dstH);
+    const clamped = this._clampContainOffsets(srcW, srcH, dstW, dstH);
+    const dx = dstW / 2 - dw * clamped.x;
+    const dy = dstH / 2 - dh * clamped.y;
     return { dx, dy, dw, dh };
+  },
+
+  computeContainVisibleSourceRect(srcW, srcH, dstW = 1080, dstH = 1920) {
+    const r = this.computeContainRect(srcW, srcH, dstW, dstH);
+    const ix1 = Math.max(0, r.dx);
+    const iy1 = Math.max(0, r.dy);
+    const ix2 = Math.min(dstW, r.dx + r.dw);
+    const iy2 = Math.min(dstH, r.dy + r.dh);
+    const iw = Math.max(1, ix2 - ix1);
+    const ih = Math.max(1, iy2 - iy1);
+    return {
+      sx: ((ix1 - r.dx) / r.dw) * srcW,
+      sy: ((iy1 - r.dy) / r.dh) * srcH,
+      sw: (iw / r.dw) * srcW,
+      sh: (ih / r.dh) * srcH
+    };
+  },
+
+  applyControlCommand(command) {
+    const step = command.fast ? 0.09 : 0.045;
+    if (command.action === 'left') this.panBy(-step, 0);
+    else if (command.action === 'right') this.panBy(step, 0);
+    else if (command.action === 'up') this.panBy(0, -step);
+    else if (command.action === 'down') this.panBy(0, step);
+    else if (command.action === 'panBy') {
+      const speed = command.fast ? 1.8 : 1;
+      this.panBy((command.dx || 0) * speed, (command.dy || 0) * speed);
+    }
+    else if (command.action === 'centerAt') this.setCenter(command.x ?? this.offsetX, command.y ?? this.offsetY);
+    else if (command.action === 'zoomAt') this.zoomAt(command.delta || 1, command.x ?? this.offsetX, command.y ?? this.offsetY);
+    else if (command.action === 'preset') this.setCenter(command.x ?? this.offsetX, command.y ?? this.offsetY);
+    else if (command.action === 'zoomIn') this.zoomBy(1.12);
+    else if (command.action === 'zoomOut') this.zoomBy(1 / 1.12);
+    else if (command.action === 'reset') this.reset();
+    else if (command.action === 'toggleFit') {
+      this.setMode(this.mode === 'contain' ? 'cover' : 'contain');
+      this.reset();
+    } else if (command.action === 'safeZoom') {
+      this.setMode('contain');
+      if (this.scale < 1.55) this.setScale(1.8);
+      else if (this.scale < 2.35) this.setScale(2.7);
+      else this.reset();
+    } else if (command.action === 'toggleGuide') {
+      this.guideEnabled = command.enabled ?? !this.guideEnabled;
+      try { localStorage.setItem('screenPanGuideEnabled', this.guideEnabled ? '1' : '0'); } catch (_) {}
+      this._updateGuideOverlay();
+    }
+  },
+
+  _sendControlCommand(action, fast = false, extra = {}) {
+    const command = {
+      type: 'screen-pan-control',
+      id: `${this._windowId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      sender: this._windowId,
+      action,
+      fast,
+      ...extra
+    };
+    this.applyControlCommand(command);
+    try { this._channel?.postMessage(command); } catch (_) {}
+  },
+
+  _installRemoteControls() {
+    if (this._remoteControlsInstalled) return;
+    this._remoteControlsInstalled = true;
+    this._windowId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    if ('BroadcastChannel' in window) {
+      this._channel = new BroadcastChannel('reels-factory-studio-controls');
+      this._channel.addEventListener('message', (event) => {
+        const command = event.data;
+        if (!command || command.type !== 'screen-pan-control') return;
+        if (command.sender === this._windowId || command.id === this._lastControlCommandId) return;
+        this._lastControlCommandId = command.id;
+        if (this._isActive()) this.applyControlCommand(command);
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const target = e.target;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+
+      const key = e.key.toLowerCase();
+      const code = e.code;
+
+      if (e.altKey && !e.ctrlKey && (key === 'g' || key === 'п' || code === 'KeyG')) {
+        e.preventDefault();
+        this._sendControlCommand('toggleGuide', false, { enabled: !this.guideEnabled });
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && (e.key === '0' || key === 'f' || key === 'а' || code === 'KeyF')) {
+        e.preventDefault();
+        this._sendControlCommand('toggleFit');
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && (key === 's' || key === 'ы' || code === 'KeyS')) {
+        e.preventDefault();
+        this._sendControlCommand('safeZoom');
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && ['1', '2', '3'].includes(e.key)) {
+        e.preventDefault();
+        const xByKey = { '1': 0.18, '2': 0.5, '3': 0.82 };
+        this._sendControlCommand('preset', false, { x: xByKey[e.key], y: this.offsetY });
+        return;
+      }
+
+      if (!e.ctrlKey || !e.altKey) return;
+
+      const map = {
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+        ArrowUp: 'up',
+        ArrowDown: 'down',
+        '=': 'zoomIn',
+        '+': 'zoomIn',
+        '-': 'zoomOut',
+        '_': 'zoomOut',
+        '0': 'reset'
+      };
+      const action = map[e.key];
+      if (!action) return;
+      e.preventDefault();
+      this._sendControlCommand(action, e.shiftKey);
+    });
+
+    let remoteDrag = null;
+    window.addEventListener('mousedown', (e) => {
+      const target = e.target;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      if (!e.altKey || e.button !== 0) return;
+      remoteDrag = { x: e.clientX, y: e.clientY, moved: false };
+      document.body.style.cursor = 'grabbing';
+      e.preventDefault();
+    }, true);
+
+    window.addEventListener('mousemove', (e) => {
+      if (!remoteDrag) return;
+      const dx = e.clientX - remoteDrag.x;
+      const dy = e.clientY - remoteDrag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) remoteDrag.moved = true;
+      remoteDrag.x = e.clientX;
+      remoteDrag.y = e.clientY;
+      this._sendControlCommand('panBy', false, {
+        dx: dx / Math.max(1, window.innerWidth),
+        dy: dy / Math.max(1, window.innerHeight),
+        fast: e.shiftKey
+      });
+      e.preventDefault();
+    }, true);
+
+    window.addEventListener('mouseup', (e) => {
+      if (!remoteDrag) return;
+      if (!remoteDrag.moved) {
+        this._sendControlCommand('centerAt', false, {
+          x: e.clientX / Math.max(1, window.innerWidth),
+          y: e.clientY / Math.max(1, window.innerHeight)
+        });
+      }
+      remoteDrag = null;
+      document.body.style.cursor = '';
+      e.preventDefault();
+    }, true);
+
+    window.addEventListener('wheel', (e) => {
+      if (!e.altKey) return;
+      e.preventDefault();
+      this._sendControlCommand('zoomAt', false, {
+        delta: e.deltaY > 0 ? (1 / 1.12) : 1.12,
+        x: e.clientX / Math.max(1, window.innerWidth),
+        y: e.clientY / Math.max(1, window.innerHeight)
+      });
+    }, { passive: false, capture: true });
+
+    window.addEventListener('resize', () => this._updateGuideOverlay());
+    window.addEventListener('scroll', () => this._updateGuideOverlay(), true);
+    this._setupGuideOverlay();
+  },
+
+  _setupGuideOverlay() {
+    if (window.studioAPI?.updateScreenGuide) {
+      this._nativeGuideOverlay = true;
+      this._updateGuideOverlay();
+      this._guideUpdateTimer = setInterval(() => this._updateGuideOverlay(), 500);
+      return;
+    }
+    if (this._guideOverlay) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'screen-pan-guide-overlay';
+    overlay.innerHTML = `
+      <div class="screen-pan-guide-label">PHONE FRAME</div>
+      <div class="screen-pan-guide-hint">Alt+click center / Alt+drag move / Alt+S safe zoom</div>
+    `;
+    document.body.appendChild(overlay);
+    this._guideOverlay = overlay;
+    this._updateGuideOverlay();
+  },
+
+  _updateGuideOverlay() {
+    const sourceW = Math.max(1, window.innerWidth);
+    const sourceH = Math.max(1, window.innerHeight);
+    const rect = this.mode === 'contain'
+      ? this.computeContainVisibleSourceRect(sourceW, sourceH, 1080, 1920)
+      : this.computeCrop(sourceW, sourceH, 1080, 1920);
+
+    if (this._nativeGuideOverlay) {
+      window.studioAPI?.updateScreenGuide({
+        enabled: this.guideEnabled,
+        fitMode: this.mode === 'contain',
+        rect: {
+          x: rect.sx,
+          y: rect.sy,
+          width: rect.sw,
+          height: rect.sh
+        }
+      });
+      return;
+    }
+
+    const overlay = this._guideOverlay;
+    if (!overlay) return;
+    if (!this.guideEnabled) {
+      overlay.classList.add('hidden');
+      return;
+    }
+
+    overlay.classList.remove('hidden');
+    overlay.classList.toggle('is-fit-mode', this.mode === 'contain');
+    overlay.style.left = `${(rect.sx / sourceW) * 100}%`;
+    overlay.style.top = `${(rect.sy / sourceH) * 100}%`;
+    overlay.style.width = `${(rect.sw / sourceW) * 100}%`;
+    overlay.style.height = `${(rect.sh / sourceH) * 100}%`;
   },
 
   /** Устанавливает mouse drag + wheel на phone-frame, рисует кнопки +/-/reset. */
   setupInteractions() {
     if (this._installed) return;
     this._installed = true;
+    this._installRemoteControls();
 
     const phone = document.getElementById('phone-frame');
     if (!phone) return;

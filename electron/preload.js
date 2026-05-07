@@ -7,6 +7,10 @@
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
+contextBridge.exposeInMainWorld('studioAPI', {
+  updateScreenGuide: (payload) => ipcRenderer.send('screen-guide:update', payload)
+});
+
 contextBridge.exposeInMainWorld('terminalAPI', {
   // Получить список доступных AI-backends (claude/codex/aider/shell)
   listBackends: () => ipcRenderer.invoke('terminal:list-backends'),

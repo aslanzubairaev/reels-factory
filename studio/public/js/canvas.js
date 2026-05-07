@@ -173,7 +173,9 @@ const Canvas = {
         const vw = video.videoWidth || 1920;
         const vh = video.videoHeight || 1080;
         const pan = (typeof ScreenPan !== "undefined")
-          ? ScreenPan.computeCrop(vw, vh, w, h)
+          ? (ScreenPan.mode === "contain"
+              ? ScreenPan.computeContainRect(vw, vh, w, h)
+              : ScreenPan.computeCrop(vw, vh, w, h))
           : (() => {
               const srcAspect = vw / vh;
               const dstAspect = w / h;
@@ -184,7 +186,11 @@ const Canvas = {
             })();
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, w, h);
+        if (pan && typeof pan.sx === "number") {
+          ctx.drawImage(video, pan.sx, pan.sy, pan.sw, pan.sh, 0, 0, w, h);
+        } else if (pan) {
+          ctx.drawImage(video, 0, 0, vw, vh, pan.dx, pan.dy, pan.dw, pan.dh);
+        }
         return;
       }
 

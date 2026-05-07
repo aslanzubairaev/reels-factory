@@ -3714,6 +3714,53 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
   min-width: 36px; text-align: center;
 }
 
+.screen-pan-guide-overlay {
+  position: fixed;
+  z-index: 9998;
+  pointer-events: none;
+  border: 2px solid rgba(255, 107, 0, 0.9);
+  outline: 9999px solid rgba(0, 0, 0, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(255, 107, 0, 0.2);
+  transition: left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease, opacity 120ms ease;
+}
+
+.screen-pan-guide-overlay.hidden {
+  opacity: 0;
+}
+
+.screen-pan-guide-overlay.is-fit-mode {
+  border-color: rgba(255, 255, 255, 0.85);
+  outline-color: rgba(0, 0, 0, 0.06);
+}
+
+.screen-pan-guide-label,
+.screen-pan-guide-hint {
+  position: absolute;
+  left: 8px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(10, 10, 20, 0.84);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.screen-pan-guide-label {
+  top: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.screen-pan-guide-hint {
+  bottom: 8px;
+  font-size: 11px;
+  opacity: 0.82;
+}
+
 /* === File browser (output/) в правой колонке === */
 .output-files-panel { display: flex; flex-direction: column; gap: 10px; }
 .output-files-head {
@@ -3953,4 +4000,295 @@ body.show-safe-zones .rec-canvas-wrapper .safe-zones-overlay { display: block; }
   font-size: 12px;
   opacity: 0.6;
   line-height: 1.35;
+}
+
+/* === Mobile / Portrait адаптация (≤ 900px viewport) ===
+   Адресует Chrome DevTools mobile emulation, узкие окна и будущую
+   mobile-версию Studio. Идея: вместо grid из 2-3 колонок — одна,
+   всё помещается без горизонтального скролла. Этап 1 — settings + builder.
+   Preview/Recording покроются следующей итерацией. */
+
+@media (max-width: 900px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* Settings-shell — без max-width, padding меньше */
+  .settings-shell {
+    width: 100%;
+    min-height: 100vh;
+    padding: 8px;
+    gap: 10px;
+  }
+
+  /* Topbar — компактный */
+  .settings-topbar {
+    padding: 6px 4px 2px;
+  }
+  .settings-brand {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .settings-brand h1 {
+    font-size: 22px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .settings-brand .subtitle {
+    font-size: 13px;
+  }
+  .settings-kicker {
+    font-size: 11px;
+  }
+
+  /* Project library — карточки на всю ширину */
+  .project-library {
+    padding: 14px;
+    gap: 12px;
+  }
+  .project-library-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding-bottom: 12px;
+  }
+  .project-library-head h2 {
+    font-size: 22px;
+    line-height: 1.1;
+  }
+  .project-list {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+  .project-create-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Builder — одна колонка вместо grid */
+  .builder-panel {
+    height: auto;
+  }
+  .builder-shell {
+    padding: 8px;
+    gap: 10px;
+  }
+  .builder-project-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .builder-project-identity h2 {
+    font-size: 18px;
+  }
+  .builder-workspace {
+    display: block !important;
+    grid-template-columns: none !important;
+    height: auto !important;
+  }
+  .builder-parts-column {
+    width: 100%;
+    margin-bottom: 12px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .builder-editor-column {
+    width: 100%;
+  }
+  .builder-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .builder-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Редактор этапа: текст + правая форма стэком */
+  .builder-form-grid {
+    display: block !important;
+    grid-template-columns: none !important;
+    width: 100%;
+    height: auto !important;
+  }
+  .builder-main-form,
+  .builder-side-form {
+    width: 100%;
+  }
+  .builder-side-form {
+    margin-top: 12px;
+  }
+  .builder-textarea {
+    min-height: 120px;
+    font-size: 14px;
+  }
+  .builder-grid {
+    display: block;
+  }
+
+  /* Studio setup card (правая панель с камера/mic/format) */
+  .studio-setup-column {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .studio-setup-card {
+    padding: 14px;
+  }
+  .studio-setup-card h3 {
+    font-size: 17px;
+  }
+
+  /* Кнопки крупнее для тач-управления */
+  .btn {
+    min-height: 38px;
+    padding: 8px 14px;
+  }
+  .btn-sm {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* Floating recording overlay — приподнять выше клавиатуры на mobile */
+  #recording-floating-overlay {
+    bottom: 24px;
+  }
+
+  /* === КРИТИЧНО: разрешить вертикальный скролл на mobile === */
+  /* Десктоп фиксирует body height: 100% + overflow: hidden на preview/recording —
+     это нужно чтобы внешнего скролла не было на больших экранах. На mobile это
+     убивает скролл и отрезает всё что не помещается в первый viewport. */
+  html, body {
+    height: auto;
+    min-height: 100%;
+  }
+  body:has(#preview-screen:not(.hidden)),
+  body:has(#recording-screen:not(.hidden)) {
+    overflow: visible;
+    overflow-y: auto;
+  }
+
+  /* Phone-frame: убираем фикс высоту (`min(calc(100svh - 200px), 720px)`),
+     оставляем aspect-ratio. На mobile он подстраивается под ширину. */
+  .phone-frame {
+    height: auto;
+    max-height: 75svh;
+    width: 100%;
+    max-width: min(100%, 460px);
+  }
+
+  /* === Preview-screen в mobile: вертикальный стэк === */
+  #preview-screen {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    width: 100%;
+    overflow-y: visible;
+  }
+  .preview-left {
+    flex: none;
+    width: 100%;
+    padding: 8px;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  .preview-stage {
+    display: flex !important;
+    flex-direction: column;
+    grid-template-columns: none !important;
+    width: 100%;
+    gap: 10px;
+    align-items: stretch;
+  }
+  /* Phone-frame первым, чтобы было видно превью сразу */
+  .preview-stage > #phone-frame,
+  .preview-stage .phone-frame {
+    order: 1;
+    width: 100%;
+    max-width: min(100%, 460px);
+    margin: 0 auto;
+  }
+  /* Camera-controls под phone-frame, на всю ширину */
+  .preview-stage > .camera-controls {
+    order: 2;
+    max-width: 100%;
+    width: 100%;
+  }
+  /* Карточки controls — в две колонки на широких mobile, в одну на узких */
+  .camera-controls-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  /* Правая панель (telepromter-side + topbar) — снизу, на всю ширину */
+  .preview-right {
+    flex: none;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 12px;
+    max-height: none;
+    overflow-y: visible;
+  }
+  .preview-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* === Recording-screen в mobile: тот же подход === */
+  #recording-screen {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    width: 100%;
+    overflow-y: visible;
+  }
+  .recording-left {
+    flex: none;
+    width: 100%;
+    padding: 8px;
+  }
+  .recording-right {
+    flex: none;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 12px;
+  }
+
+  /* Part rails (полоса этапов): горизонтальный скролл вместо вертикального */
+  .preview-part-rail,
+  .recording-part-rail {
+    width: 100%;
+    max-width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 90px;
+    padding: 6px;
+    gap: 6px;
+  }
+  .preview-part-rail > *,
+  .recording-part-rail > * {
+    flex-shrink: 0;
+  }
+}
+
+/* === Очень узкий экран (≤ 480px) — типичный смартфон portrait ===
+   Дополнительные правила для смартфонов. */
+@media (max-width: 480px) {
+  .settings-brand h1 {
+    font-size: 18px;
+  }
+  .project-library-head h2 {
+    font-size: 18px;
+  }
+  .builder-textarea {
+    min-height: 100px;
+  }
+  /* Кнопки внутри project-card — стек */
+  .project-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
 }
