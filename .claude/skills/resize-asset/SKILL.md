@@ -1,7 +1,7 @@
 ---
 name: resize-asset
 description: Resize and crop photos and videos to 1080x1920 (9:16 vertical). Use after generating any background asset.
-allowed-tools: Bash(python3 *)
+allowed-tools: Bash(python *)
 ---
 
 # Resize Asset Skill
@@ -11,10 +11,10 @@ Resizes/crops assets to exactly 1080×1920 (9:16 vertical portrait).
 ## Usage
 ```bash
 # Image
-python3 .claude/skills/resize-asset/resize.py --input "path/to/image.jpg"
+python .claude/skills/resize-asset/resize.py --input "path/to/image.jpg"
 
 # Video (with target duration)
-python3 .claude/skills/resize-asset/resize.py --input "path/to/video.mp4" --duration 10
+python .claude/skills/resize-asset/resize.py --input "path/to/video.mp4" --duration 10
 ```
 
 ## Notes

@@ -161,6 +161,7 @@ function normalizePart(sourcePart, index, usedIds) {
     picture: 'photo',
     clip: 'video',
     movie: 'video',
+    screen: 'screen_capture',
     '': rawLayout === 'face_only' ? 'none' : 'none'
   };
 

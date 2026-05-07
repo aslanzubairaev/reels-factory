@@ -15,6 +15,7 @@ from jsonschema import validate, ValidationError
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'schemas', 'script.schema.json')
 
 VALID_SLIDE_CATEGORIES = {'infographic', 'comparison', 'text_slide', 'mockup'}
+SCREEN_CAPTURE_TYPES = {'screen', 'screen_capture'}
 
 INFOGRAPHIC_REQUIRED = {'title', 'items'}
 COMPARISON_REQUIRED = {'left_title', 'right_title', 'left_items', 'right_items'}
@@ -75,19 +76,20 @@ def validate_script(script_path):
             if p.get('background_prompt', '') != '':
                 errors.append(f"Part {pn}: face_only must have empty background_prompt")
 
-        # W-020: claim and visual_proof required when background_type != none
-        if bg_type != 'none':
+        # W-020: claim and visual_proof required for generated/static visual backgrounds.
+        # Screen capture is selected live in Studio, so older Studio drafts may not have these fields.
+        if bg_type != 'none' and bg_type not in SCREEN_CAPTURE_TYPES:
             if not p.get('claim', '').strip():
                 errors.append(f"Part {pn}: 'claim' is required when background_type='{bg_type}'")
             if not p.get('visual_proof', '').strip():
                 errors.append(f"Part {pn}: 'visual_proof' is required when background_type='{bg_type}'")
 
         # Screen capture: live screen, no AI prompt, no slide data
-        if bg_type == 'screen':
+        if bg_type in SCREEN_CAPTURE_TYPES:
             if p.get('background_prompt', '') != '':
-                errors.append(f"Part {pn}: screen must have empty background_prompt")
+                errors.append(f"Part {pn}: screen_capture must have empty background_prompt")
             if p.get('slide_data'):
-                errors.append(f"Part {pn}: screen must not have slide_data")
+                errors.append(f"Part {pn}: screen_capture must not have slide_data")
 
         # W-017: html_slide must not have AI prompt
         if bg_type == 'html_slide':
@@ -126,7 +128,7 @@ def validate_script(script_path):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print("Usage: python3 validate.py <path_to_script.json>")
+        print("Usage: python validate.py <path_to_script.json>")
         sys.exit(1)
     success = validate_script(sys.argv[1])
     sys.exit(0 if success else 1)

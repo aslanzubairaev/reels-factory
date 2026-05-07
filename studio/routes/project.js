@@ -18,6 +18,7 @@ const {
 } = require('../lib/projects');
 const { getPartAssetMetadata } = require('../lib/project-assets');
 const { getValidateScriptPath } = require('../lib/runtime-paths');
+const { getPythonCommand } = require('../lib/python');
 
 function attachAssetMetadata(projectName, script) {
   migrateLegacyAssetAliases(projectName, script);
@@ -269,8 +270,19 @@ router.post('/project/:name/validate', (req, res) => {
       return res.status(404).json({ error: 'Script not found for this project' });
     }
 
-    execFile('python3', [getValidateScriptPath(), path.join(getProjectsDir(), projectName, '02_script.json')], {
-      timeout: 30000
+    let pythonBin;
+    try {
+      pythonBin = getPythonCommand();
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    execFile(pythonBin, [getValidateScriptPath(), path.join(getProjectsDir(), projectName, '02_script.json')], {
+      timeout: 30000,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8'
+      }
     }, (error, stdout, stderr) => {
       const output = `${stdout || ''}${stderr || ''}`.trim();
 

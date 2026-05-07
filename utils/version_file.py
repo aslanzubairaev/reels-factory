@@ -3,13 +3,13 @@
 Versioning utility — renames current file to _vN before overwriting.
 
 Usage:
-    python3 utils/version_file.py <file_path>
+    python utils/version_file.py <file_path>
 
 If the file exists, it will be renamed to filename_vN.ext where N is the
 next available version number. If the file doesn't exist, nothing happens.
 
 Example:
-    python3 utils/version_file.py projects/my-project/02_script.json
+    python utils/version_file.py projects/my-project/02_script.json
     # 02_script.json -> 02_script_v1.json (or _v2, _v3, etc.)
 """
 
@@ -50,7 +50,7 @@ def version_file(file_path):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print("Usage: python3 version_file.py <file_path>")
+        print("Usage: python version_file.py <file_path>")
         sys.exit(1)
 
     result = version_file(sys.argv[1])

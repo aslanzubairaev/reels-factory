@@ -93,7 +93,7 @@ Multi-agent system for creating Instagram Reels. User talks to Claude Code → C
 
 ## Validation
 
-After every script generation/edit: `python3 .claude/skills/validate-script/validate.py projects/[name]/02_script.json`
+After every script generation/edit: `python .claude/skills/validate-script/validate.py projects/[name]/02_script.json`
 
 ## Background Prompt Rules
 

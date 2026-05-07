@@ -65,7 +65,7 @@
 2. «Идея №3, но измени...» → правь и жди утверждения
 3. «Своя идея: ...» → усиль, добавь все разделы
 
-**Перед обновлением** — версионируй: `python3 utils/version_file.py projects/[name]/01_trend.md`
+**Перед обновлением** — версионируй: `python utils/version_file.py projects/[name]/01_trend.md`
 
 ## History
 

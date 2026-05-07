@@ -1,7 +1,7 @@
 ---
 name: generate-photo
 description: Generate background photos using Google Gemini API (model gemini-3-pro-image-preview). Use when creating or regenerating background images for Reels slides.
-allowed-tools: Bash(python3 *)
+allowed-tools: Bash(python *)
 ---
 
 # Generate Photo Skill
@@ -10,7 +10,7 @@ Generates a background photo using Google Gemini API.
 
 ## Usage
 ```bash
-python3 .claude/skills/generate-photo/generate_photo.py --prompt "your prompt" --output "path/to/output.jpg"
+python .claude/skills/generate-photo/generate_photo.py --prompt "your prompt" --output "path/to/output.jpg"
 ```
 
 ## Requirements

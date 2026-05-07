@@ -23,7 +23,7 @@ function getScriptsDir() {
 }
 
 function getValidateScriptPath() {
-  return path.join(getScriptsDir(), 'validate_script.py');
+  return path.join(APP_ROOT, '.claude', 'skills', 'validate-script', 'validate.py');
 }
 
 function getTemplatesDir() {

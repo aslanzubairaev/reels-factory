@@ -1,7 +1,7 @@
 ---
 name: validate-script
 description: Validate a script JSON file against the schema and business rules. Use after generating or editing 02_script.json.
-allowed-tools: Bash(python3 *)
+allowed-tools: Bash(python *)
 ---
 
 # Validate Script Skill
@@ -10,7 +10,7 @@ Validates `02_script.json` against JSON Schema and business rules.
 
 ## Usage
 ```bash
-python3 .claude/skills/validate-script/validate.py projects/[name]/02_script.json
+python .claude/skills/validate-script/validate.py projects/[name]/02_script.json
 ```
 
 ## Checks

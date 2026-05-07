@@ -117,14 +117,14 @@ and left 85% of the frame, keep bottom 30% and right 15% clear
 ## Шаг 5: Валидация
 
 ```bash
-python3 .claude/skills/validate-script/validate.py projects/[name]/02_script.json
+python .claude/skills/validate-script/validate.py projects/[name]/02_script.json
 ```
 
 ## Шаг 6: Показ и утверждение
 
 Покажи в читаемом виде. Жди — пользователь должен утвердить сценарий.
 
-**Перед изменениями** — версионируй: `python3 utils/version_file.py projects/[name]/02_script.json`
+**Перед изменениями** — версионируй: `python utils/version_file.py projects/[name]/02_script.json`
 
 ## Шаг 7: Вызови Visual Agent
 

@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { execFile, execFileSync } = require('child_process');
+const { execFile } = require('child_process');
 const { assertSafeProjectName } = require('../lib/projects');
+const { resolvePythonCommand } = require('../lib/python');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PROJECTS_DIR = path.join(ROOT, 'projects');
@@ -15,18 +16,9 @@ const VALID_VIDEO_SERVICES = new Set(['seedance', 'veo', undefined, null, '']);
 
 const BG_PROMPT_SUFFIX = ', background plate for talking head video, soft even lighting, no harsh shadows, no foreground objects, color palette compatible with indoor skin tones, 9:16 vertical portrait orientation';
 
-// Windows ships `python`, not `python3`. Detect once at module load.
-let PYTHON_BIN = null;
-for (const cmd of ['python3', 'python', 'py']) {
-  try {
-    execFileSync(cmd, ['--version'], { stdio: 'pipe', windowsHide: true });
-    PYTHON_BIN = cmd;
-    break;
-  } catch (_) { /* try next */ }
-}
+const PYTHON_BIN = resolvePythonCommand();
 if (!PYTHON_BIN) {
-  console.warn('⚠️  No Python interpreter found (tried python3, python, py). Generation endpoints will fail.');
-  PYTHON_BIN = 'python3';
+  console.warn('⚠️  No Python interpreter found. Generation endpoints will fail until Python is available in PATH or PYTHON_BIN is set.');
 }
 
 /**
@@ -157,6 +149,12 @@ router.post('/generate', async (req, res) => {
     }
 
     // Step 5: Execute generation
+    if (!PYTHON_BIN) {
+      return res.status(500).json({
+        error: 'Python interpreter not found. Install Python and make sure `python` or `py` is available in PATH, or set PYTHON_BIN in .env.'
+      });
+    }
+
     // Only pass required env vars to child process — not the entire environment
     const env = {
       PATH: process.env.PATH,

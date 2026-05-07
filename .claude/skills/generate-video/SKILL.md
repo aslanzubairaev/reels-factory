@@ -1,7 +1,7 @@
 ---
 name: generate-video
 description: Generate background videos using Veo 3 (Google Gemini) or Seedance 2 (PiAPI). Use when creating or regenerating video backgrounds for Reels slides.
-allowed-tools: Bash(python3 *)
+allowed-tools: Bash(python *)
 ---
 
 # Generate Video Skill
@@ -10,13 +10,13 @@ Two options for video generation:
 
 ## Veo 3 (Google Gemini)
 ```bash
-python3 .claude/skills/generate-video/generate_veo.py --prompt "..." --duration 10 --output "path.mp4"
+python .claude/skills/generate-video/generate_veo.py --prompt "..." --duration 10 --output "path.mp4"
 ```
 Requires: `GEMINI_API_KEY`
 
 ## Seedance 2 (PiAPI)
 ```bash
-python3 .claude/skills/generate-video/generate_seedance.py --prompt "..." --duration 10 --output "path.mp4"
+python .claude/skills/generate-video/generate_seedance.py --prompt "..." --duration 10 --output "path.mp4"
 ```
 Requires: `PIAPI_KEY`
 
